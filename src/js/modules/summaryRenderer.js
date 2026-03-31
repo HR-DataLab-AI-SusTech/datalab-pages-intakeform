@@ -1,14 +1,16 @@
-import { formConfig } from '../config/formConfig.js';
+import { getFormConfig } from '../config/formConfig.js';
 import { getValue } from './stateManager.js';
 import { generateMarkdown } from './markdownGenerator.js';
 import { downloadMarkdown } from './downloadHandler.js';
 import { goToPage } from './pageController.js';
 
 function getSummaryPage() {
+  const formConfig = getFormConfig();
   return formConfig.pages.find((p) => p.isSummary) || {};
 }
 
 export function renderSummary(container) {
+  const formConfig = getFormConfig();
   container.innerHTML = '';
 
   const summaryPage = getSummaryPage();

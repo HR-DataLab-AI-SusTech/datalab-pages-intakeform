@@ -1,8 +1,11 @@
-import { formConfig } from './config/formConfig.js';
+import { loadFormConfig, getFormConfig } from './config/formConfig.js';
 import { initNavigation } from './modules/navigation.js';
 import { hasAnyValues } from './modules/stateManager.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadFormConfig();
+  const formConfig = getFormConfig();
+
   const titleEl = document.querySelector('.header-title');
   if (titleEl) {
     titleEl.textContent = formConfig.title;

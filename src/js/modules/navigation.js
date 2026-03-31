@@ -1,11 +1,11 @@
-import { formConfig } from '../config/formConfig.js';
+import { getFormConfig } from '../config/formConfig.js';
 import { renderPage } from './formRenderer.js';
 import { validatePage } from './validation.js';
 import { renderSummary } from './summaryRenderer.js';
 import { setNavigateCallback } from './pageController.js';
 
 let currentPage = 0;
-const totalPages = formConfig.pages.length;
+let totalPages = 0;
 
 let formContainer;
 let btnPrev;
@@ -14,6 +14,9 @@ let pageCounter;
 let stepIndicator;
 
 export function initNavigation() {
+  const formConfig = getFormConfig();
+  totalPages = formConfig.pages.length;
+
   formContainer = document.getElementById('form-container');
   btnPrev = document.getElementById('btn-prev');
   btnNext = document.getElementById('btn-next');
@@ -44,6 +47,7 @@ function goToPreviousPage() {
 }
 
 function goToNextPage() {
+  const formConfig = getFormConfig();
   const page = formConfig.pages[currentPage];
 
   if (!page.isSummary) {
@@ -60,6 +64,7 @@ function goToNextPage() {
 }
 
 function showPage(index) {
+  const formConfig = getFormConfig();
   const page = formConfig.pages[index];
 
   if (page.isSummary) {
@@ -94,6 +99,7 @@ function updatePageCounter(index) {
 }
 
 function buildStepIndicator() {
+  const formConfig = getFormConfig();
   stepIndicator.innerHTML = '';
 
   for (let i = 0; i < totalPages; i++) {

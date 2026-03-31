@@ -113,110 +113,108 @@ Default: `datalab-intake-2026-03-31.md`
 
 ## Configuring the Form
 
-All form content lives in a single file:
+All form content lives in a single JSON file:
 
 ```
-src/js/config/formConfig.js
+src/config/formConfig.json
 ```
 
-Edit this file to add, remove, or change questions. No other file needs to change.
+Edit this file to add, remove, or change questions. No other file needs to change. Since it's plain JSON (not JavaScript), non-developers can safely edit it too.
 
 ### Config Structure
 
-```js
-export const formConfig = {
-  // Form-level settings
-  title: 'Datalab Intake Form',               // Header title + markdown heading
-  subtitle: 'Project intake for ...',          // Header subtitle + markdown quote
-  downloadFilenamePrefix: 'datalab-intake',    // Downloaded file: {prefix}-2026-03-31.md
+```json
+{
+  "title": "Datalab Intake Form",
+  "subtitle": "Project intake for ...",
+  "downloadFilenamePrefix": "datalab-intake",
 
-  pages: [
+  "pages": [
     {
-      id: 'my-page',                           // Unique page identifier
-      title: 'Page Heading',                   // Shown as h2 on the page
-      subtitle: 'Optional description text',   // Shown below the heading
-      fields: [ /* ... */ ]
+      "id": "my-page",
+      "title": "Page Heading",
+      "subtitle": "Optional description text",
+      "fields": [ ]
     },
-    // Last page must be the summary page:
     {
-      id: 'summary',
-      title: 'Summary & Download',
-      isSummary: true,
-      summaryPageTitle: 'Review Your Answers',
-      editButtonText: 'Edit',
-      emptyFieldText: 'No answer provided',
-      downloadInstructions: 'Review your answers above, then download...',
-      downloadButtonText: 'Download as Markdown',
-      fields: [],
+      "id": "summary",
+      "title": "Summary & Download",
+      "isSummary": true,
+      "summaryPageTitle": "Review Your Answers",
+      "editButtonText": "Edit",
+      "emptyFieldText": "No answer provided",
+      "downloadInstructions": "Review your answers above, then download...",
+      "downloadButtonText": "Download as Markdown",
+      "fields": []
     }
   ]
-};
+}
 ```
 
 ### Field Types
 
 #### `textarea` — Multi-line text input
 
-```js
+```json
 {
-  id: 'background',
-  type: 'textarea',
-  label: 'What is the background of the problem?',
-  subtitle: 'Describe the context and why this matters.',
-  placeholder: 'Enter your answer...',
-  required: true,
-  rows: 5,          // Height of the text area (default: 4)
+  "id": "background",
+  "type": "textarea",
+  "label": "What is the background of the problem?",
+  "subtitle": "Describe the context and why this matters.",
+  "placeholder": "Enter your answer...",
+  "required": true,
+  "rows": 5
 }
 ```
 
 #### `text` — Single-line text input
 
-```js
+```json
 {
-  id: 'file-format',
-  type: 'text',
-  label: 'What is the file format?',
-  subtitle: 'Specify file extensions you expect.',
-  placeholder: 'e.g. .csv, .wav, .json',
-  required: true,
+  "id": "file-format",
+  "type": "text",
+  "label": "What is the file format?",
+  "subtitle": "Specify file extensions you expect.",
+  "placeholder": "e.g. .csv, .wav, .json",
+  "required": true
 }
 ```
 
 #### `radio` — Single-select (pick one)
 
-```js
+```json
 {
-  id: 'data-collected',
-  type: 'radio',
-  label: 'Is the data already collected?',
-  options: ['Yes, already collected', 'No, still needs to be collected'],
-  required: true,
+  "id": "data-collected",
+  "type": "radio",
+  "label": "Is the data already collected?",
+  "options": ["Yes, already collected", "No, still needs to be collected"],
+  "required": true
 }
 ```
 
 #### `checkbox` — Multi-select (pick many)
 
-```js
+```json
 {
-  id: 'stack-elements',
-  type: 'checkbox',
-  label: 'Which stack elements are needed?',
-  subtitle: 'Select all that apply.',
-  options: ['Data collection', 'Cleaning', 'Analysis', 'Visualization', 'ML/AI', 'Deployment'],
-  required: true,
+  "id": "stack-elements",
+  "type": "checkbox",
+  "label": "Which stack elements are needed?",
+  "subtitle": "Select all that apply.",
+  "options": ["Data collection", "Cleaning", "Analysis", "Visualization", "ML/AI", "Deployment"],
+  "required": true
 }
 ```
 
 #### `select` — Dropdown menu
 
-```js
+```json
 {
-  id: 'priority',
-  type: 'select',
-  label: 'What is the project priority?',
-  placeholder: 'Choose a priority...',
-  options: ['Low', 'Medium', 'High', 'Critical'],
-  required: true,
+  "id": "priority",
+  "type": "select",
+  "label": "What is the project priority?",
+  "placeholder": "Choose a priority...",
+  "options": ["Low", "Medium", "High", "Critical"],
+  "required": true
 }
 ```
 
@@ -234,17 +232,17 @@ export const formConfig = {
 
 Any field can include an external link for more information:
 
-```js
+```json
 {
-  id: 'gdpr',
-  type: 'radio',
-  label: 'Does the project involve GDPR-sensitive data?',
-  infoLink: {
-    url: 'https://example.com/gdpr-info',
-    text: 'More about GDPR',
+  "id": "gdpr",
+  "type": "radio",
+  "label": "Does the project involve GDPR-sensitive data?",
+  "infoLink": {
+    "url": "https://example.com/gdpr-info",
+    "text": "More about GDPR"
   },
-  options: ['Yes', 'No', 'Not sure'],
-  required: true,
+  "options": ["Yes", "No", "Not sure"],
+  "required": true
 }
 ```
 
@@ -254,48 +252,48 @@ Any field can include an external link for more information:
 
 Add a new object to the `pages` array (before the summary page):
 
-```js
+```json
 {
-  id: 'team-info',
-  title: 'Team Information',
-  subtitle: 'Tell us about the people involved.',
-  fields: [
+  "id": "team-info",
+  "title": "Team Information",
+  "subtitle": "Tell us about the people involved.",
+  "fields": [
     {
-      id: 'q13',
-      type: 'text',
-      label: 'Who is the project lead?',
-      placeholder: 'Full name',
-      required: true,
+      "id": "q13",
+      "type": "text",
+      "label": "Who is the project lead?",
+      "placeholder": "Full name",
+      "required": true
     },
     {
-      id: 'q14',
-      type: 'text',
-      label: 'Contact email',
-      placeholder: 'name@example.com',
-      required: true,
+      "id": "q14",
+      "type": "text",
+      "label": "Contact email",
+      "placeholder": "name@example.com",
+      "required": true
     },
     {
-      id: 'q15',
-      type: 'select',
-      label: 'Which department?',
-      options: ['Research', 'Engineering', 'Clinical', 'Operations', 'Other'],
-      required: true,
-    },
-  ],
-},
+      "id": "q15",
+      "type": "select",
+      "label": "Which department?",
+      "options": ["Research", "Engineering", "Clinical", "Operations", "Other"],
+      "required": true
+    }
+  ]
+}
 ```
 
 #### Making a field optional
 
 Simply omit `required` or set it to `false`:
 
-```js
+```json
 {
-  id: 'notes',
-  type: 'textarea',
-  label: 'Any additional notes?',
-  subtitle: 'Optional — add anything else we should know.',
-  rows: 4,
+  "id": "notes",
+  "type": "textarea",
+  "label": "Any additional notes?",
+  "subtitle": "Optional — add anything else we should know.",
+  "rows": 4
 }
 ```
 
@@ -336,6 +334,8 @@ npm run format      # Auto-format with Prettier
 ```
 src/
   index.html                        # Single-page HTML shell
+  config/
+    formConfig.json                  # All form content as JSON (edit this!)
   css/
     reset.css                       # CSS reset
     variables.css                   # Design tokens (colors, fonts, spacing)
@@ -345,9 +345,9 @@ src/
     summary.css                     # Summary/review page and download section
     utilities.css                   # Helpers (hidden, sr-only, reduced-motion)
   js/
-    main.js                         # Entry point — wires config to DOM
+    main.js                         # Entry point — loads config, wires DOM
     config/
-      formConfig.js                 # All form content defined as data
+      formConfig.js                 # Fetches and exposes the JSON config
     modules/
       formRenderer.js               # Reads config, builds DOM for each page
       navigation.js                 # Page switching, step indicator, prev/next

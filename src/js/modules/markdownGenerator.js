@@ -1,7 +1,8 @@
-import { formConfig } from '../config/formConfig.js';
+import { getFormConfig } from '../config/formConfig.js';
 import { getAllValues } from './stateManager.js';
 
 export function generateMarkdown() {
+  const formConfig = getFormConfig();
   const values = getAllValues();
   const now = new Date();
   const date = now.toISOString().split('T')[0];
