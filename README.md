@@ -4,7 +4,9 @@ A config-driven, multi-step intake form for the AI SusTech Datalab. Collects dat
 
 No database, no backend — just static HTML/CSS/JS served via Docker.
 
-![AI SusTech Datalab Intake Form](docs/frontpage_screenhot.jpeg)
+![Landing Page](docs/frontpage_screenshot.jpeg)
+
+![Form Page](docs/firstpage_screenshot.jpeg)
 
 ## Quick Start
 
