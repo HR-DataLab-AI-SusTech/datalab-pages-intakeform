@@ -2,7 +2,7 @@ let formConfig = null;
 
 export async function loadFormConfig() {
   try {
-    const response = await fetch('/config/formConfig.json');
+    const response = await fetch('./config/formConfig.json');
     if (!response.ok) {
       throw new Error(`Failed to load config: ${response.status}`);
     }
