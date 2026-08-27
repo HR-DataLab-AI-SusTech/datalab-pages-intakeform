@@ -9,8 +9,8 @@
     "lint:html": "htmlhint \"src/**/*.html\"",
     "lint": "npm run lint:js && npm run lint:css && npm run lint:html",
     "format": "prettier --write \"src/**/*.{html,css,js}\"",
-    "docker:up": "docker compose up --build",
-    "docker:down": "docker compose down"
+    "docker:up": "docker compose --profile dev up --build",
+    "docker:down": "docker compose --profile dev down"
   },
   "devDependencies": {
     "eslint": "^8.57.0",

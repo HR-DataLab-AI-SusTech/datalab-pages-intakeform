@@ -8,9 +8,16 @@ A config-driven, multi-step intake form for the AI SusTech Datalab. Collects dat
 filling it in and downloading your answers sends nothing anywhere.
 
 Since 2026-08-27 there is *also* an optional backend, [`bridge/`](bridge/README.md), which stores a
-submission in Postgres and files it into a review queue in Compass. It is **opt-in and currently
-switched off** (`SUBMIT_ENABLED` in [`src/js/config/bridgeConfig.js`](src/js/config/bridgeConfig.js))
-because it is not deployed yet — so today the form behaves exactly as it always has.
+submission in Postgres and files it into a review queue in Compass. It is **deployed and running**,
+but Submit is **switched off** (`SUBMIT_ENABLED` in
+[`src/js/config/bridgeConfig.js`](src/js/config/bridgeConfig.js)) — so today the form behaves exactly
+as it always has: fill in, download, send the file.
+
+⚠️ **Why it is off, since "deployed but disabled" invites the wrong guess.** The bridge is reachable
+only over the lab's private network, and that network's public entry point is currently failing for
+reasons outside this project. Enabling Submit before it recovers would put a button on a public page
+that cannot work. The one check that says it is safe to enable is in
+[`bridge/README.md`](bridge/README.md).
 
 ![Landing Page](docs/frontpage_screenshot.jpeg)
 
@@ -26,10 +33,15 @@ https://hr-datalab-ai-sustech.github.io/datalab-pages-intakeform/
 ### Using Docker (local development)
 
 ```bash
-docker compose up --build
+docker compose --profile dev up --build
 ```
 
 Open [http://localhost:8080](http://localhost:8080) in your browser.
+
+ℹ️ **`--profile dev` is required.** Without it Compose starts only the `bridge` service, because
+the nginx preview and the bridge's throwaway Postgres are both dev-only — see
+[`bridge/README.md`](bridge/README.md). Plain `docker compose up -d` is what the deploy reconciler
+runs on the host, and it must not start a second copy of this page there.
 
 To stop:
 
@@ -50,16 +62,19 @@ npx serve src -l 8080
 1. A **landing page** introduces the form with an overview of the sections and estimated time
 2. The user navigates through 6 question pages covering use-case, regulations, data, and tech stack
 3. The **summary page** shows all answers with "Edit" links to jump back to any section
-4. Download the completed intake as **Markdown** or **CSV**
-5. A **Start Over** button clears all answers to begin fresh
-6. Form state is persisted in `sessionStorage` — refreshing the page won't lose data
-7. Browser **back/forward buttons** work — each page gets a readable URL hash (e.g. `#use-case-description`)
+4. Download the completed intake as **Markdown** or **CSV** — the filename carries the project name
+5. Optionally **Submit** it to the lab's own backend, if that has been switched on
+   (`SUBMIT_ENABLED` in `src/js/config/bridgeConfig.js`); otherwise the page says so plainly instead
+   of showing a button that cannot work
+6. A **Start Over** button clears all answers to begin fresh
+7. Form state is persisted in `sessionStorage` — refreshing the page won't lose data
+8. Browser **back/forward buttons** work — each page gets a readable URL hash (e.g. `#use-case-description`)
 
 ## Download Formats
 
 ### Markdown
 
-The downloaded file (`aisustech-datalab-intake-YYYY-MM-DD.md`) is a structured document:
+The downloaded file (`intake-<project>-YYYY-MM-DD.md`) is a structured document:
 
 ```markdown
 # AI SusTech Datalab Intake Form
@@ -106,14 +121,21 @@ CSV fields are escaped to prevent Excel formula injection.
 
 ### Filename
 
-Configurable via `downloadFilenamePrefix` in `formConfig.json`:
-
 ```
-{prefix}-YYYY-MM-DD.md
-{prefix}-YYYY-MM-DD.csv
+{prefix}-{project}-YYYY-MM-DD.md
+{prefix}-{project}-YYYY-MM-DD.csv
 ```
 
-Default: `aisustech-datalab-intake-2026-03-31.md`
+`{prefix}` is `downloadFilenamePrefix` in `formConfig.json`. `{project}` is a slug of **`q0`**
+("What should we call this project?") — accents transliterate, punctuation collapses to hyphens, and
+a long name is truncated so the date stays visible. If `q0` is empty the project part is omitted
+rather than failing.
+
+Example: `intake-powertruck-battery-twin-2026-08-27.md`
+
+🔺 **The project name is in the filename on purpose.** Without it every intake filled in on the same
+day downloaded under an identical name — collisions in the Downloads folder, and nothing to say
+which project a file belonged to without opening it.
 
 ## Configuring the Form
 
@@ -131,7 +153,7 @@ Edit this file to add, remove, or change questions. No other file needs to chang
 {
   "title": "AI SusTech Datalab Intake Form",
   "subtitle": "Project intake for data & AI projects",
-  "downloadFilenamePrefix": "aisustech-datalab-intake",
+  "downloadFilenamePrefix": "intake",
   "nextButtonText": "Next",
   "prevButtonText": "Previous",
 
@@ -177,7 +199,7 @@ Edit this file to add, remove, or change questions. No other file needs to chang
 |---|---|---|
 | **Landing** | `"isLanding": true` | Welcome page with description, feature cards, and CTA button. Must be the first page. |
 | **Form** | (default) | Question page with fields. Requires validation before advancing. |
-| **Summary** | `"isSummary": true` | Read-only review with download buttons and Start Over. Must be the last page. |
+| **Summary** | `"isSummary": true` | Read-only review, the download buttons, the submit section, and Start Over. Must be the last page. |
 
 ### Field Types
 
@@ -367,6 +389,7 @@ src/
     main.js                         # Entry point — loads config, wires DOM
     config/
       formConfig.js                 # Fetches and exposes the JSON config
+      bridgeConfig.js               # Bridge URL + SUBMIT_ENABLED flag (the one place to edit)
     modules/
       formRenderer.js               # Reads config, builds DOM for each page
       landingRenderer.js            # Landing page with hero, features, CTA
@@ -376,16 +399,32 @@ src/
       markdownGenerator.js          # Converts answers to formatted Markdown
       csvGenerator.js               # Converts answers to CSV with formula protection
       downloadHandler.js            # Creates Blob and triggers file download
-      summaryRenderer.js            # Review page with download + start over
+      summaryRenderer.js            # Review page: download, submit, start over
       pageController.js             # Decoupled page navigation (avoids circular deps)
+bridge/                             # ── The optional backend. Deployed separately, NOT by Pages ──
+  server.js                         # REST (/draft, /submit) + MCP over HTTP (/mcp)
+  schema.sql                        # The `intakes` table; applied by hand
+  mcp-conformance.mjs               # Read-only MCP probe; safe against production
+  Dockerfile                        # Multi-stage, digest-pinned
+  package.json                      # `pg` is the one dependency
+  .env.example                      # Schema only, no values
+  README.md                         # How to run it, its traps, its invariants
 .github/
   workflows/
     deploy-pages.yml                # Auto-deploy to GitHub Pages on push to main
 docker/
-  Dockerfile                        # nginx:alpine — works standalone or with compose
+  Dockerfile                        # nginx:alpine — the dev preview image
   nginx.conf                        # Static file serving config
-docker-compose.yml                  # Mounts src/ as volume on port 8080
+docker-compose.yml                  # `bridge` (default) + `web`/`postgres-dev` (profile: dev)
+smoke_reconcile.sh                  # Post-deploy health check, run by lab-reconcile
+.sops.yaml                          # Encryption recipients (public keys — no secret)
+env.sops                            # The bridge's .env, encrypted to the host key set
 ```
+
+⚠️ **Two deploy paths, one repo.** `src/` is published by GitHub Pages on every push to `main`.
+`bridge/` is a container on a lab host, converged by a separate pull-based reconciler — **pushing
+here does not deploy it**. That split is also why CSS and JS can briefly be out of step with each
+other; [`CLAUDE.md`](CLAUDE.md) explains what that means for anyone restyling a component.
 
 ## Architecture Decisions
 
@@ -401,17 +440,42 @@ docker-compose.yml                  # Mounts src/ as volume on port 8080
 
 ## Theming
 
-To change the visual appearance, edit `src/css/variables.css`:
+**All colour lives in `src/css/variables.css`.** Reference the tokens from component CSS, never a
+hex — that is what keeps a re-skin to one file.
 
 ```css
 :root {
-  --color-primary: #e2001a;       /* Header, buttons, active steps */
-  --color-secondary: #0a0a0a;     /* Accent bars, info links */
-  --color-error: #dc2828;         /* Error states — kept distinct from primary */
-  --color-success: #3f7d20;       /* Download button, completed steps */
+  --color-primary: #e2001a;       /* HR red — header, primary buttons, active steps */
+  --color-secondary: #0a0a0a;     /* Near-black — accent bars, info links */
+  --color-error: #dc2828;         /* A DIFFERENT red — see the note below */
+  --color-success: #3f7d20;       /* Completed steps */
   --color-bg: #f4f6fb;            /* Page background */
   --color-surface: #fff;          /* Card / form background */
   --font-display: 'Poppins', system-ui, sans-serif;
   --font-body: 'Poppins', system-ui, sans-serif;
 }
 ```
+
+🔺 **Red is the brand, so red cannot also mean danger.** `--color-error` is deliberately a different
+red from `--color-primary`: once the primary button is red, hue alone no longer separates "submit"
+from "something went wrong". Keep them distinct, and never let colour be the only carrier of meaning.
+
+### `--on-brand-*` — the tokens for surfaces where red is the *background*
+
+Same file, and worth reading before styling anything that sits on the red panel. HR red is an
+unforgiving background, measured:
+
+| on `#e2001a` | ratio | |
+| --- | --- | --- |
+| white | 4.94 | ✅ AA |
+| `#fff5f6` | 4.62 | ✅ |
+| `#f3f4f6` — a near-white **grey** | 4.49 | ❌ |
+| `#ffe8ea` — a soft pink | 4.23 | ❌ large text only |
+
+⇒ **There is no "muted" text on a red surface.** Hierarchy there comes from size and weight. Reaching
+for a soft tint to de-emphasise something is the obvious move and it fails AA.
+
+⚠️ **`--on-brand-scrim` is a black wash, not a white one.** Hover must *darken* a red surface: +18%
+black lands on `#b90015` where white text measures 6.83, while +15% white lands on `#e6263c` where it
+drops to **4.46 and fails**. Lightening a mid-luminance brand colour under white text is the trap
+that once made a button look disabled.
