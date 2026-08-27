@@ -30,6 +30,28 @@ const FORM_CONFIG_PATH = process.env.FORM_CONFIG_PATH || "/app/formConfig.json";
 const COMPASS_REPO = "HR-DataLab-AI-SusTech/compass";
 const COMPASS_API = "https://api.github.com";
 
+/* ── CORS ──────────────────────────────────────────────────────────────────────────────────────
+ *
+ * 🔺 THE BROWSER FORM IS ON A DIFFERENT ORIGIN AND CANNOT REACH THIS SERVER WITHOUT THIS.
+ * The form is served from GitHub Pages; this bridge answers on its own hostname. The submit call
+ * sends `Content-Type: application/json` AND the custom `X-Intake-Passphrase` header, and EITHER
+ * of those alone makes the request non-simple — so the browser sends a preflight OPTIONS first and
+ * refuses the real request unless this server answers it. Without the block below, every
+ * submission fails in the browser before it ever reaches Node, and the server log stays empty,
+ * which is what makes it a confusing failure rather than an obvious one.
+ *
+ * An allowlist, not `*`, and deliberately so: `*` would let any page on the internet submit
+ * intakes on a visitor's behalf. Credentials are not used (no cookies), so no
+ * Access-Control-Allow-Credentials.
+ */
+const ALLOWED_ORIGINS = (process.env.INTAKE_ALLOWED_ORIGINS ||
+  "https://hr-datalab-ai-sustech.github.io")
+  .split(",").map((o) => o.trim()).filter(Boolean);
+
+/** The schema the PUBLISHED form actually renders. See getFormConfig() for why this exists. */
+const FORM_CONFIG_URL = process.env.FORM_CONFIG_URL ||
+  "https://hr-datalab-ai-sustech.github.io/datalab-pages-intakeform/config/formConfig.json";
+
 // Fail fast on the two secrets this server cannot function without — same spirit as
 // compass-board's bridge refusing to start with no VIKUNJA_TOKEN. COMPASS_GITHUB_TOKEN is NOT in
 // this list: it is expected to be absent in most environments (including this one, right now) and
@@ -171,7 +193,34 @@ function rateLimited(ip) {
     rateLimitMap.set(ip, entry);
   }
   entry.count++;
-  return entry.count > RATE_LIMIT_MAX;
+  if (entry.count > RATE_LIMIT_MAX) return true;
+  return globalLimitReached();
+}
+
+/* The spoof-proof half. The passphrase is a SINGLE SHARED SECRET, so what has to be bounded is the
+ * total number of guesses against it, not the number per claimed source address. This counter is
+ * keyed on nothing, so nothing a client sends can reset it.
+ *
+ * Sized to be invisible to real use and fatal to a script: a genuine session submits once, maybe
+ * retries a typo. 30 failures in 10 minutes across the whole service is already pathological.
+ * ⚠️ Only FAILURES count (see noteFailedAttempt) — a busy day of successful submissions must never
+ * trip this, or the form breaks precisely when it is being used.
+ */
+const GLOBAL_FAIL_MAX = 30;
+const GLOBAL_FAIL_WINDOW_MS = 10 * 60 * 1000;
+let globalFails = { count: 0, resetAt: Date.now() + GLOBAL_FAIL_WINDOW_MS };
+
+function globalLimitReached() {
+  const now = Date.now();
+  if (now > globalFails.resetAt) globalFails = { count: 0, resetAt: now + GLOBAL_FAIL_WINDOW_MS };
+  return globalFails.count > GLOBAL_FAIL_MAX;
+}
+
+/** Call on every REJECTED passphrase, from whichever door it arrived through. */
+function noteFailedAttempt() {
+  const now = Date.now();
+  if (now > globalFails.resetAt) globalFails = { count: 0, resetAt: now + GLOBAL_FAIL_WINDOW_MS };
+  globalFails.count++;
 }
 
 // Sweep expired entries occasionally so a long-lived process does not accumulate one entry per IP
@@ -181,9 +230,26 @@ setInterval(() => {
   for (const [ip, entry] of rateLimitMap) if (now > entry.resetAt) rateLimitMap.delete(ip);
 }, 30 * 60 * 1000).unref();
 
+/* 🔺 `X-Forwarded-For` IS CLIENT-SUPPLIED AND THIS SERVER CANNOT VALIDATE IT.
+ *
+ * This bridge sits behind NetBird's hosted reverse proxy, whose egress address is not something we
+ * can pin here, so there is no trustworthy "is this hop the real proxy?" test. That leaves two bad
+ * options and one acceptable one:
+ *
+ *   - Trust XFF  → an attacker sends a fresh value per request and gets a fresh bucket each time,
+ *                  i.e. unlimited guessing. (This estate has already been bitten by exactly this:
+ *                  XFF spoofing past per-IP limits is what made LibreChat's :3080 urgent.)
+ *   - Ignore XFF → every public request arrives from the proxy, collapses to ONE bucket, and five
+ *                  attempts lock out every legitimate user at once.
+ *
+ * So per-IP bucketing is kept as a best-effort courtesy (it separates honest users from each other
+ * and costs nothing), and the ACTUAL brute-force control is the global counter below, which no
+ * header can influence. Read `rateLimited()` with that split in mind: per-IP is UX, global is
+ * security. Do not "fix" this by deleting the global limiter because per-IP looks sufficient.
+ */
 function clientIp(req) {
   const xff = req.headers["x-forwarded-for"];
-  if (xff) return String(xff).split(",")[0].trim();
+  if (xff) return `xff:${String(xff).split(",")[0].trim()}`;
   return req.socket.remoteAddress || "unknown";
 }
 
@@ -205,9 +271,46 @@ function callerIdentity(headers, fallback) {
  * Re-read on every use rather than cached at boot: the form's own repo can change formConfig.json
  * without a bridge restart, and get_intake_schema/list rendering should reflect that immediately.
  */
-function readFormConfig() {
+function readFormConfigFromDisk() {
   const raw = fs.readFileSync(FORM_CONFIG_PATH, "utf8");
   return JSON.parse(raw);
+}
+
+/* 🔺 THE MOUNTED COPY IS NOT NECESSARILY THE ONE THE FORM IS SHOWING, and that is the whole reason
+ * this function is not just a readFileSync.
+ *
+ * The published form is deployed by GitHub Pages from `main`, on every push. This container is
+ * deployed by lab-reconcile from an IMMUTABLE SHA pinned in infrastructure/deployments — which is
+ * the point of the deploy model and is not going to change. So the two are the same file at two
+ * different commits, and they diverge the moment a question is edited and the manifest pin is not
+ * bumped. Nothing would report it: the chat agent would simply start asking a different set of
+ * questions than the web form, and every answer would still store fine because answers are JSONB.
+ *
+ * So: prefer the LIVE published schema (that is what a human is actually looking at), fall back to
+ * the mounted copy when the fetch fails, and cache briefly so a chat turn is not one HTTP round
+ * trip per tool call. The fallback is what keeps this safe — a GitHub outage degrades to
+ * "possibly slightly stale questions", never to a broken tool.
+ */
+const SCHEMA_TTL_MS = 5 * 60 * 1000;
+let schemaCache = { at: 0, value: null, source: null };
+
+async function getFormConfig() {
+  if (schemaCache.value && Date.now() - schemaCache.at < SCHEMA_TTL_MS) return schemaCache.value;
+  try {
+    const r = await fetch(FORM_CONFIG_URL, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const value = await r.json();
+    if (!value || !Array.isArray(value.pages)) throw new Error("no pages[] in fetched schema");
+    schemaCache = { at: Date.now(), value, source: FORM_CONFIG_URL };
+    return value;
+  } catch (e) {
+    const value = readFormConfigFromDisk();
+    // Logged every time, not once: a bridge quietly serving the pinned copy for weeks is exactly
+    // the silent-drift state this function exists to avoid.
+    console.log(`bridge: WARNING could not fetch the live form schema (${e.message}) — falling back to the mounted copy at ${FORM_CONFIG_PATH}`);
+    schemaCache = { at: Date.now(), value, source: `${FORM_CONFIG_PATH} (fallback)` };
+    return value;
+  }
 }
 
 /** Every real question, in form order, id -> label — used to line up the Compass write-up with
@@ -362,7 +465,7 @@ async function fileIntoCompass(row) {
 
   try {
     let fields = [];
-    try { fields = schemaFields(readFormConfig()); }
+    try { fields = schemaFields(await getFormConfig()); }
     catch (e) { console.log(`bridge: WARNING could not read form schema for Compass write-up: ${e.message}`); }
 
     const submissionPath = `projects/intake-form/submissions/${date}-${slug}.md`;
@@ -449,7 +552,7 @@ const TOOLS = {
       "questions the web form asks. Read this before asking the user anything, so questions never drift.",
     inputSchema: { type: "object", properties: {} },
     async run() {
-      return readFormConfig();
+      return await getFormConfig();
     },
   },
 
@@ -494,7 +597,7 @@ const TOOLS = {
       // door, which is exactly what the comment on RATE_LIMIT_MAX says must not happen. Keep
       // this identical to the REST /submit ordering.
       if (rateLimited(caller.ip)) return { error: "too many attempts, try again later" };
-      if (!safeEqual(passphrase, PASSPHRASE)) return { error: "forbidden" };
+      if (!safeEqual(passphrase, PASSPHRASE)) { noteFailedAttempt(); return { error: "forbidden" }; }
       const row = await getIntake(draft_id);
       if (!row) return { error: `no intake with id ${draft_id}` };
       const result = await finalizeSubmission({
@@ -562,8 +665,22 @@ function readBody(req) {
   });
 }
 
-function sendJson(res, status, obj) {
-  res.writeHead(status, { "Content-Type": "application/json" });
+/** The CORS headers for one request, or {} if this origin is not allowed. `Vary: Origin` is not
+ *  optional: without it a cache can serve one origin's allow-header to another origin. */
+function corsHeaders(req) {
+  const origin = req.headers.origin;
+  if (!origin || !ALLOWED_ORIGINS.includes(origin)) return { Vary: "Origin" };
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "content-type, x-intake-passphrase",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
+
+function sendJson(res, status, obj, req) {
+  res.writeHead(status, { "Content-Type": "application/json", ...(req ? corsHeaders(req) : {}) });
   res.end(JSON.stringify(obj));
 }
 
@@ -577,30 +694,47 @@ const srv = http.createServer(async (req, res) => {
       return res.end("ok\n");
     }
 
+    // Preflight. Answered for the browser-facing REST routes only — NOT for /mcp, which exists for
+    // server-side callers (Claude Code, LibreChat) and has no reason to be reachable from a web
+    // page. Declining to CORS-enable /mcp keeps browser-driven tool calls off the table entirely.
+    if (req.method === "OPTIONS") {
+      if (pathname === "/mcp") { res.writeHead(404); return res.end(); }
+      res.writeHead(204, corsHeaders(req));
+      return res.end();
+    }
+
     if (req.method === "POST" && pathname === "/draft") {
+      // ⚠️ This route takes NO passphrase, by design — drafting has to work before anyone has one.
+      // That makes it a public unauthenticated write, so it gets the same limiter as /submit;
+      // otherwise it is an open invitation to fill the table with rows. (readBody already caps the
+      // payload, so the remaining lever is request COUNT.)
+      if (rateLimited(clientIp(req))) {
+        return sendJson(res, 429, { error: "too many attempts, try again later" }, req);
+      }
       const body = JSON.parse((await readBody(req)) || "{}");
       const submitted_by = callerIdentity(req.headers, "web");
       const id = await upsertDraft({
         draft_id: body.draft_id, answers: body.answers, source: "web", submitted_by,
       });
-      return sendJson(res, 200, { draft_id: id });
+      return sendJson(res, 200, { draft_id: id }, req);
     }
 
     if (req.method === "GET" && /^\/draft\/[^/]+$/.test(pathname)) {
       const id = decodeURIComponent(pathname.slice("/draft/".length));
       const row = await getIntake(id);
-      if (!row) return sendJson(res, 404, { error: "not found" });
-      return sendJson(res, 200, { id: row.id, status: row.status, answers: row.answers, compass_pr_url: row.compass_pr_url });
+      if (!row) return sendJson(res, 404, { error: "not found" }, req);
+      return sendJson(res, 200, { id: row.id, status: row.status, answers: row.answers, compass_pr_url: row.compass_pr_url }, req);
     }
 
     if (req.method === "POST" && pathname === "/submit") {
       const ip = clientIp(req);
-      if (rateLimited(ip)) return sendJson(res, 429, { error: "too many attempts, try again later" });
+      if (rateLimited(ip)) return sendJson(res, 429, { error: "too many attempts, try again later" }, req);
 
       const passphrase = req.headers["x-intake-passphrase"];
       if (!safeEqual(passphrase, PASSPHRASE)) {
         // No detail, by design — a wrong/missing passphrase must not tell an attacker which it was.
-        return sendJson(res, 403, { error: "forbidden" });
+        noteFailedAttempt();
+        return sendJson(res, 403, { error: "forbidden" }, req);
       }
 
       const body = JSON.parse((await readBody(req)) || "{}");
@@ -615,7 +749,7 @@ const srv = http.createServer(async (req, res) => {
       const raw = await readBody(req);
       let msgs;
       try { msgs = JSON.parse(raw); }
-      catch { return sendJson(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }); }
+      catch { return sendJson(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }, req); }
 
       const caller = {
         ip: clientIp(req),
@@ -631,11 +765,11 @@ const srv = http.createServer(async (req, res) => {
       return sendJson(res, 200, single ? out[0] : out);
     }
 
-    sendJson(res, 404, { error: "not found" });
+    sendJson(res, 404, { error: "not found" }, req);
   } catch (e) {
     console.log(`bridge: WARNING request failed: ${e && e.message}`);
     if (res.headersSent) return res.end();
-    sendJson(res, 500, { error: "internal error" });
+    sendJson(res, 500, { error: "internal error" }, req);
   }
 });
 
