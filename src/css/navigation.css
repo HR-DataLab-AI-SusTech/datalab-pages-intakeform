@@ -41,7 +41,7 @@
   background-color: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-text-inverse);
-  box-shadow: 0 0 0 4px rgb(10 48 73 / 12%);
+  box-shadow: 0 0 0 4px rgb(226 0 26 / 12%);
   transform: scale(1.1);
 }
 

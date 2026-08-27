@@ -12,7 +12,7 @@ export async function loadFormConfig() {
     const container = document.getElementById('form-container');
     if (container) {
       container.innerHTML =
-        '<div style="text-align:center;padding:3rem 1rem;color:#9b2743;">' +
+        '<div style="text-align:center;padding:3rem 1rem;color:#dc2828;">' +
         '<h2>Failed to load form configuration</h2>' +
         '<p>Please refresh the page or contact the administrator.</p>' +
         '</div>';

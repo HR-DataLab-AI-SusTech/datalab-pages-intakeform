@@ -15,14 +15,19 @@ docker compose up     # Serve on localhost:8080
 ## Deployment
 
 - **Production**: GitHub Pages — auto-deployed via `.github/workflows/deploy-pages.yml` on push to `main`
-- **Live URL**: https://hr-datalab-ai-sustech.github.io/general-pages-intakeform/
+- **Live URL**: https://hr-datalab-ai-sustech.github.io/datalab-pages-intakeform/
 - **Local**: `docker compose up` on localhost:8080
 
 ## Privacy
 
 - No external CDN requests (fonts are self-hosted)
 - No analytics, tracking, or third-party scripts
-- Form data stays in the browser (`sessionStorage`) — never sent to a server
+- Filling out the form and downloading Markdown/CSV is unchanged and still makes **zero
+  network calls** — answers stay in the browser (`sessionStorage`) unless you use Submit.
+- There is also an optional **Submit** action that sends the answers to the lab's own
+  self-hosted backend (not a third party) so the datateam can review submissions
+  centrally. It is gated by a shared passphrase. Using Submit means the data leaves the
+  browser — don't describe the form as fully private once that path is used.
 
 ## Architecture
 
@@ -36,11 +41,13 @@ docker compose up     # Serve on localhost:8080
 
 ## Brand: Hogeschool Rotterdam / AI SusTech Datalab
 
-- Dark teal/petrol: #0a3049 (header, primary)
-- Deep burgundy/rose: #9b2743 (accent, cards)
-- Muted green: #5a8a3c (CTA, success)
-- Warm cream: #f7f4ef (background)
-- Sand borders: #d9d3ca
+- HR red: #e2001a (header, primary — buttons, active steps)
+- Near-black: #0a0a0a (decorative accent bars, info links, foreground text)
+- Green: #3f7d20 (CTA, success — download button, completed steps)
+- Cool grey-white: #f4f6fb (background)
+- Light neutral borders: #e5e7eb
+- Distinct error red: #dc2828 (never the same red as primary — the two must stay
+  visually separable)
 - Font: Poppins (self-hosted, no Google Fonts — privacy-safe)
 
 ## Frontend Design Skill
@@ -51,8 +58,8 @@ This skill guides creation of distinctive, production-grade frontend interfaces 
 
 The current design uses an editorial aesthetic with:
 - Poppins font family (self-hosted, HR corporate font)
-- Dominant dark teal with burgundy accents
-- Warm cream backgrounds with subtle grain texture
+- Dominant HR red with near-black accents
+- Cool grey-white backgrounds with subtle grain texture
 - Staggered animations on page transitions
 - Strong typographic hierarchy with decorative underlines
 

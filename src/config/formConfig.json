@@ -28,6 +28,14 @@
       "subtitle": "Help us understand the project you have in mind.",
       "fields": [
         {
+          "id": "q0",
+          "type": "text",
+          "label": "What should we call this project?",
+          "subtitle": "A short, memorable name for internal reference.",
+          "placeholder": "A short, memorable name — this becomes the project's folder name later",
+          "required": true
+        },
+        {
           "id": "q1",
           "type": "textarea",
           "label": "Describe the use-case in a popular summary.",
