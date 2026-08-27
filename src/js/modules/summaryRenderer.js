@@ -110,14 +110,14 @@ export function renderSummary(container) {
   btnGroup.className = 'download-btn-group';
 
   btnGroup.appendChild(
-    createDownloadButton('Markdown', 'btn-primary', () => {
+    createDownloadButton('Markdown', 'btn-on-brand', () => {
       const md = generateMarkdown();
       downloadMarkdown(md);
     }),
   );
 
   btnGroup.appendChild(
-    createDownloadButton('CSV', 'btn-outline-light', () => {
+    createDownloadButton('CSV', 'btn-outline-on-brand', () => {
       const csv = generateCsv();
       downloadCsv(csv);
     }),
@@ -169,8 +169,6 @@ function createDownloadButton(label, cssClass, onClick) {
   return btn;
 }
 
-// Not styled here on purpose — this workstream adds the button and its behaviour; visual styling
-// (like the rest of this page) is a separate reskin workstream's job.
 function createSubmitSection() {
   const wrapper = document.createElement('div');
   wrapper.className = 'submit-section';
@@ -189,18 +187,25 @@ function createSubmitSection() {
     return wrapper;
   }
 
+  // 🔺 Classed, and the classes matter: this whole section sits on the RED panel, where the
+  // inherited near-black body colour measures 4.01 and fails AA. An unclassed label here renders
+  // as good as invisible — the same fault that hit the intro paragraph on the live site.
   const label = document.createElement('label');
+  label.className = 'submit-label';
   label.textContent = 'Passphrase';
   label.setAttribute('for', 'intake-submit-passphrase');
 
   const passphraseInput = document.createElement('input');
   passphraseInput.type = 'password';
+  passphraseInput.className = 'submit-passphrase';
   passphraseInput.id = 'intake-submit-passphrase';
   passphraseInput.autocomplete = 'off';
   passphraseInput.setAttribute('aria-label', 'Submission passphrase');
 
+  // ⚠️ NOT `btn-primary` — that class IS HR red, which on a red panel is an invisible button.
+  // `btn-on-brand` is the white-fill/red-label pairing built for this background.
   const submitBtn = document.createElement('button');
-  submitBtn.className = 'btn btn-primary submit-btn';
+  submitBtn.className = 'btn btn-on-brand submit-btn';
   submitBtn.textContent = 'Submit';
   submitBtn.setAttribute('aria-label', 'Submit the intake form');
 

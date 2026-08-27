@@ -83,26 +83,27 @@
 
 /* ── The "finish line" panel ───────────────────────────────────────────────────────────────────
  *
- * Deliberately the ONE dark block on a light page: this is the end of the form, and it should feel
- * like arriving somewhere rather than like another card. The rest of the summary stays white, so
- * the contrast does the work of saying "you are done".
+ * HR red, and the colour rules here are TIGHT because of what red measures at. #e2001a sits at
+ * mid-luminance, so against it:
  *
- * 🔺 THE DARK SURFACE IS WHAT MAKES THE BUTTONS WORK, and that is why it is dark rather than
- * decorative. Three earlier attempts each failed on the same axis:
- *   · red gradient panel  → the primary action had to be GREEN to stand out, the exact green/red
- *                           pairing hr-visual-design.md warns about (it collapses under
- *                           deuteranopia), and the secondary became white-at-15% and read DISABLED.
- *   · plain white panel   → contrast fine, but flat and characterless: the "cookie-cutter" look
- *                           this repo's own design mandate in CLAUDE.md explicitly rules out.
- *   · dark panel (this)   → a red fill keeps its white label at 4.94:1, and a white OUTLINE button
- *                           sits at 17.58:1. Both actions read strongly without either borrowing
- *                           the other's colour.
- * Every pair measured before shipping: white/red-fill 4.94 · white/dark 17.58 · intro #cbd5e1
- * 11.84 · muted #94a3b8 6.86 · overline #f64c5d 5.12. All AA, most far above it.
+ *   white     4.94  ✅ the only body-text colour that clears AA
+ *   #fff5f6   4.62  ✅ (barely)
+ *   #f3f4f6   4.49  ❌ — a near-white grey already fails
+ *   #ffe8ea   4.23  ❌ large text only
  *
- * Values come from hr-visual-design.md's own dark theme (#141924 card, #0e121a canvas, #f64c5d as
- * the dark-mode red for TEXT, full-strength #e2001a kept for the button FILL — the guide is
- * explicit that a filled button in dark keeps the strong red and a white label).
+ * 🔺 SO THERE IS NO "MUTED" TEXT ON THIS PANEL. Every string is white, and hierarchy comes from
+ * SIZE and WEIGHT instead. Reaching for a soft pink to de-emphasise the note is the obvious move
+ * and it fails AA — that is what the numbers above are recorded for.
+ *
+ * 🔺 AND HOVER MUST DARKEN, NEVER LIGHTEN. A white overlay on red raises the background luminance
+ * and pushes white text DOWN: +15% white lands on #e6263c, where white measures 4.46 and fails.
+ * +18% black lands on #b90015, where it measures 6.83 and improves. Measured both, 2026-08-27.
+ * The earlier white-at-15% secondary button is exactly this mistake, which is also why it read as
+ * disabled.
+ *
+ * Buttons are visible against red WITHOUT being red — the constraint Kristof set:
+ *   primary   = WHITE FILL with a red label (4.94), the highest-contrast shape available here
+ *   secondary = WHITE OUTLINE with a white label (4.94), clearly subordinate, clearly not disabled
  */
 .download-section {
   position: relative;
@@ -112,42 +113,41 @@
   text-align: center;
   border-radius: var(--border-radius-lg);
   background:
-    radial-gradient(120% 140% at 88% -20%, rgb(226 0 26 / 45%) 0%, transparent 55%),
-    linear-gradient(160deg, #141924 0%, #0e121a 100%);
+    radial-gradient(120% 130% at 85% -25%, rgb(255 255 255 / 16%) 0%, transparent 55%),
+    linear-gradient(160deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
   box-shadow: var(--shadow-lg);
 }
 
-/* Grain. An inline SVG turbulence, so it costs no request and cannot leak a visitor's IP to a CDN
- * — this repo forbids external assets outright. It stops the gradient reading as flat digital
- * colour, which is most of what made the white version feel cheap. */
+/* Grain, from an inline SVG turbulence — no request, and this repo forbids external assets
+ * outright. It keeps the red from reading as flat digital colour. */
 .download-section::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.22'/%3E%3C/svg%3E");
-}
-
-/* A hairline of brand red along the top edge — the one place the panel states the colour flatly. */
-.download-section::after {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-primary) 0%, rgb(226 0 26 / 0%) 78%);
+  opacity: 0.3;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.24'/%3E%3C/svg%3E");
 }
 
 .download-section > * {
   position: relative;
 }
 
+/* 🔺 EVERY paragraph white, set on the ELEMENT not just on a class.
+ * Body text on this site is near-black; on red that measures 4.01 and fails. Relying on a class to
+ * override it means any markup the CSS has not been told about renders unreadable — which is what
+ * happened on the live site when new CSS met the previous JS, whose intro paragraph carries no
+ * class. Putting it on `p` makes a future rename unable to reintroduce that. */
+.download-section p {
+  color: #fff;
+}
+
 .download-overline {
   margin: 0 0 var(--spacing-sm);
-  color: #f64c5d;
+  color: #fff;
   font-size: var(--font-size-xs);
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
@@ -155,30 +155,15 @@
   margin: 0 0 var(--spacing-sm);
   font-family: var(--font-display);
   font-size: var(--font-size-2xl);
-  font-weight: 400;
+  font-weight: 500;
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: #fff;
 }
 
-/* 🔺 A BASE RULE FOR EVERY PARAGRAPH IN THE PANEL, and it is a safety net rather than a style.
- *
- * The panel is dark, but body text on this site is near-black. So ANY paragraph in here that does
- * not match one of the specific rules below inherits #0a0a0a on a dark ground — measured 1.13:1,
- * i.e. invisible. That is not hypothetical: it happened on the live site the moment this redesign
- * shipped, because the previous JS emits the intro paragraph with NO class (`.download-intro` is
- * new), and unversioned assets let old JS run against new CSS for up to ten minutes.
- * Same cache-skew class as the `.btn-outline-primary` alias below. Setting the readable colour on
- * the ELEMENT rather than only on the new class means a future rename cannot reintroduce it.
- */
-.download-section p {
-  color: #cbd5e1;
-}
-
 .download-intro {
   margin: 0 auto var(--spacing-xl);
   max-width: 44ch;
-  color: #cbd5e1;
   font-size: var(--font-size-base);
   line-height: 1.6;
 }
@@ -195,71 +180,115 @@
   justify-content: center;
 }
 
-/* Outlined on dark: the two downloads are equally valid outcomes, so CSV must read as "less
- * expected", never as "unavailable". White at full strength, not a faded tint — the faded version
- * is precisely what looked disabled before.
- *
- * ⚠️ `.btn-outline-primary` IS AN ALIAS, KEPT ON PURPOSE — do not delete it as dead code.
- *
- * This site has no build step, so assets are served unversioned with `max-age=600`. CSS and JS
- * therefore expire independently, and for up to ten minutes after a deploy a visitor can hold NEW
- * css with OLD js. Measured on the live site 2026-08-27: the old js asked for
- * `.btn-outline-primary`, the new css had renamed it to `.btn-outline-light`, and the CSV button
- * rendered as an unstyled browser default — grey box, black label, on a dark panel.
- *
- * Styling both names identically makes that window harmless in either direction. It is three lines
- * against a class of bug that is otherwise invisible in testing, because the developer who just
- * deployed has both halves fresh and never sees it.
- */
+/* PRIMARY on red: a white block. Nothing else available here is both non-red and this visible. */
+.btn-on-brand {
+  background-color: #fff;
+  color: var(--color-primary);
+  border-color: #fff;
+  font-weight: 700;
+}
+
+.btn-on-brand:hover {
+  background-color: #fff5f6;
+  color: var(--color-primary-hover);
+  border-color: #fff5f6;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* SECONDARY on red: white outline, white label, and a DARKENING hover.
+ * ⚠️ `.btn-outline-primary` / `.btn-outline-light` are kept as aliases — this site has no build
+ * step, so unversioned CSS and JS expire independently and old JS can ask for a retired class name
+ * for up to ten minutes after a deploy. Both older names rendered an unstyled browser default when
+ * that happened. Do not delete them as dead code. */
+.btn-outline-on-brand,
 .btn-outline-light,
 .btn-outline-primary {
   background-color: transparent;
   color: #fff;
-  border-color: rgb(255 255 255 / 45%);
+  border-color: rgb(255 255 255 / 70%);
+  font-weight: 600;
 }
 
+.btn-outline-on-brand:hover,
 .btn-outline-light:hover,
 .btn-outline-primary:hover {
-  background-color: rgb(255 255 255 / 10%);
+  background-color: rgb(0 0 0 / 18%);
   border-color: #fff;
   color: #fff;
   transform: translateY(-1px);
 }
 
-/* The submit-state note sits BELOW the buttons, so it needs its own separation — without it the
- * sentence reads as a caption on the CSV button rather than a statement about the panel. */
 .submit-section {
   margin-top: var(--spacing-xl);
   padding-top: var(--spacing-lg);
-  border-top: 1px solid rgb(255 255 255 / 12%);
+  border-top: 1px solid rgb(255 255 255 / 28%);
 }
 
+/* ℹ️ Success and error are both WHITE, and that is deliberate rather than lazy: no tinted
+ * red-or-green clears AA on this background (soft pink 4.23, soft green similar), and
+ * hr-visual-design.md requires that colour never carry meaning alone anyway. The wording does the
+ * work — "Submitted — thank you." vs "Wrong passphrase." — with weight for emphasis. */
 .submit-section .submit-status {
   margin: 0 auto;
   max-width: 46ch;
-  color: #94a3b8;
   font-size: var(--font-size-sm);
   line-height: 1.6;
 }
 
-.submit-section .submit-status-error { color: #fca5a5; }
-.submit-section .submit-status-success { color: #86efac; }
+.submit-section .submit-status-error,
+.submit-section .submit-status-success {
+  font-weight: 600;
+}
 
-/* Start Over: reachable and legible, never competing with the two real actions. */
+/* The passphrase field, for when SUBMIT_ENABLED is turned on. A white input on the red panel —
+ * the inputs elsewhere in this form are white-on-light and would vanish here. */
+.submit-label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.submit-passphrase {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto var(--spacing-md);
+  padding: 10px 14px;
+  border: 2px solid rgb(255 255 255 / 70%);
+  border-radius: var(--border-radius-sm);
+  background-color: #fff;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  outline: none;
+}
+
+.submit-passphrase:focus {
+  border-color: #fff;
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 25%);
+}
+
+.submit-btn {
+  margin: 0 auto;
+}
+
 .start-over-btn {
   margin-top: var(--spacing-lg);
   padding: 8px 20px;
   font-size: var(--font-size-sm);
   font-weight: 500;
   background-color: transparent;
-  color: #94a3b8;
-  border-color: rgb(255 255 255 / 18%);
+  color: #fff;
+  border-color: rgb(255 255 255 / 35%);
 }
 
 .start-over-btn:hover {
+  background-color: rgb(0 0 0 / 18%);
+  border-color: rgb(255 255 255 / 70%);
   color: #fff;
-  border-color: rgb(255 255 255 / 40%);
-  background-color: rgb(255 255 255 / 8%);
 }
 
 .download-section .btn {
