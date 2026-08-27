@@ -488,8 +488,13 @@ const TOOLS = {
     } },
     async run({ draft_id, passphrase }, caller) {
       if (!draft_id) return { error: "draft_id is required" };
-      if (!safeEqual(passphrase, PASSPHRASE)) return { error: "forbidden" };
+      // 🔺 RATE LIMIT BEFORE THE PASSPHRASE, and the order is the whole point: rateLimited()
+      // INCREMENTS the counter as a side effect, so checking the passphrase first meant a wrong
+      // guess returned here without ever being counted — i.e. unlimited guessing through this
+      // door, which is exactly what the comment on RATE_LIMIT_MAX says must not happen. Keep
+      // this identical to the REST /submit ordering.
       if (rateLimited(caller.ip)) return { error: "too many attempts, try again later" };
+      if (!safeEqual(passphrase, PASSPHRASE)) return { error: "forbidden" };
       const row = await getIntake(draft_id);
       if (!row) return { error: `no intake with id ${draft_id}` };
       const result = await finalizeSubmission({
