@@ -183,8 +183,9 @@
 
 /* Outlined on dark: the two downloads are equally valid outcomes, so CSV must read as "less
  * expected", never as "unavailable". White at full strength, not a faded tint — the faded version
- * is precisely what looked disabled before. */
-/* ⚠️ `.btn-outline-primary` IS AN ALIAS, KEPT ON PURPOSE — do not delete it as dead code.
+ * is precisely what looked disabled before.
+ *
+ * ⚠️ `.btn-outline-primary` IS AN ALIAS, KEPT ON PURPOSE — do not delete it as dead code.
  *
  * This site has no build step, so assets are served unversioned with `max-age=600`. CSS and JS
  * therefore expire independently, and for up to ten minutes after a deploy a visitor can hold NEW
