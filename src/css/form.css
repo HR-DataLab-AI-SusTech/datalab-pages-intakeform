@@ -155,8 +155,11 @@
 
 .form-textarea::placeholder,
 .form-input::placeholder {
+  /* No `opacity` here on purpose: --color-text-muted is ALREADY the muted token, and
+     layering opacity on top of it blends it back under the AA line — measured 2.41:1
+     against a white input, vs 5.21:1 for the token alone. Same trap the lab's
+     hr-visual-design guide records against the lab website's `opacity:.8`. */
   color: var(--color-text-muted);
-  opacity: 0.6;
 }
 
 .form-textarea:hover,
