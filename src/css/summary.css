@@ -82,59 +82,87 @@
 }
 
 /* Download section */
+/* ── Download / submit panel ───────────────────────────────────────────────────────────────────
+ *
+ * 🔺 A LIGHT PANEL WITH A RED ACCENT, not a saturated red panel. It was a full-bleed
+ * primary→primary-hover gradient until 2026-08-27, and that single choice forced every control
+ * inside it into a bad position: the main action had to be GREEN to stand out against red (the one
+ * pairing hr-visual-design.md explicitly warns about, since green↔red collapses under
+ * deuteranopia), the secondary became white-at-15%-opacity and read as *disabled*, and `.btn-secondary`
+ * — muted grey text on a muted grey border — was close to invisible on red.
+ *
+ * Fixing the buttons individually would have been treating symptoms. The panel is now the same
+ * white-card-on-light-canvas figure/ground the rest of the form uses, so the primary action can
+ * simply be HR red like every other primary action in the app, and the secondary can be an
+ * outlined version of it. Measured: white on #e2001a = 4.94:1, #e2001a on white = 4.94:1,
+ * muted #666d7a on white = 5.21:1 — all AA.
+ */
 .download-section {
   text-align: center;
   padding: var(--spacing-2xl) var(--spacing-xl);
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--border-radius);
   margin-top: var(--spacing-2xl);
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
+/* The accent bar carries the brand instead of a whole red field. */
 .download-section::before {
   content: '';
   position: absolute;
-  top: 0;
-  right: 0;
-  width: 200px;
-  height: 200px;
-  background: var(--color-secondary);
-  border-radius: 50%;
-  transform: translate(60px, -80px);
-  opacity: 0.15;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--color-primary);
 }
 
 .download-section p {
   margin-bottom: var(--spacing-lg);
-  color: var(--color-primary-light);
-  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
   position: relative;
+  max-width: 46ch;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .download-btn-group {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
   align-items: center;
   position: relative;
 }
 
 .download-btn-group .btn {
-  min-width: 220px;
+  min-width: 240px;
   justify-content: center;
 }
 
-.btn-secondary-light {
-  background-color: rgb(255 255 255 / 15%);
-  color: var(--color-surface);
-  border: 1px solid rgb(255 255 255 / 30%);
+/* Outlined primary: the same brand colour as the filled button, one step down in emphasis. Both
+ * downloads are equally valid outcomes, so CSV must not look broken — only less expected. */
+.btn-outline-primary {
+  background-color: transparent;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
-.btn-secondary-light:hover {
-  background-color: rgb(255 255 255 / 25%);
-  box-shadow: var(--shadow-md);
+.btn-outline-primary:hover {
+  background-color: var(--color-primary-light);
+  border-color: var(--color-primary-hover);
+  color: var(--color-primary-hover);
   transform: translateY(-1px);
+}
+
+/* Start Over is destructive-ish and rarely wanted: legible, never competing. */
+.start-over-btn {
+  margin-top: var(--spacing-lg);
+  padding: 8px 20px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
 }
 
 .download-section .btn {

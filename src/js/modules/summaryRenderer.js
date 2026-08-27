@@ -97,14 +97,14 @@ export function renderSummary(container) {
   btnGroup.className = 'download-btn-group';
 
   btnGroup.appendChild(
-    createDownloadButton('Markdown', 'btn-success', () => {
+    createDownloadButton('Markdown', 'btn-primary', () => {
       const md = generateMarkdown();
       downloadMarkdown(md);
     }),
   );
 
   btnGroup.appendChild(
-    createDownloadButton('CSV', 'btn-secondary-light', () => {
+    createDownloadButton('CSV', 'btn-outline-primary', () => {
       const csv = generateCsv();
       downloadCsv(csv);
     }),
