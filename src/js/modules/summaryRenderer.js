@@ -1,9 +1,10 @@
 import { getFormConfig } from '../config/formConfig.js';
-import { getValue, clearState } from './stateManager.js';
+import { getValue, getAllValues, clearState } from './stateManager.js';
 import { generateMarkdown } from './markdownGenerator.js';
 import { generateCsv } from './csvGenerator.js';
 import { downloadMarkdown, downloadCsv } from './downloadHandler.js';
 import { goToPage } from './pageController.js';
+import { BRIDGE_BASE_URL } from '../config/bridgeConfig.js';
 
 function getSummaryPage() {
   const formConfig = getFormConfig();
@@ -111,6 +112,8 @@ export function renderSummary(container) {
 
   downloadSection.appendChild(btnGroup);
 
+  downloadSection.appendChild(createSubmitSection());
+
   const startOverBtn = document.createElement('button');
   startOverBtn.className = 'btn btn-secondary start-over-btn';
   startOverBtn.textContent = summaryPage.startOverButtonText || 'Start Over';
@@ -151,6 +154,110 @@ function createDownloadButton(label, cssClass, onClick) {
   });
 
   return btn;
+}
+
+// Not styled here on purpose — this workstream adds the button and its behaviour; visual styling
+// (like the rest of this page) is a separate reskin workstream's job.
+function createSubmitSection() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'submit-section';
+
+  const label = document.createElement('label');
+  label.textContent = 'Passphrase';
+  label.setAttribute('for', 'intake-submit-passphrase');
+
+  const passphraseInput = document.createElement('input');
+  passphraseInput.type = 'password';
+  passphraseInput.id = 'intake-submit-passphrase';
+  passphraseInput.autocomplete = 'off';
+  passphraseInput.setAttribute('aria-label', 'Submission passphrase');
+
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'btn btn-primary submit-btn';
+  submitBtn.textContent = 'Submit';
+  submitBtn.setAttribute('aria-label', 'Submit the intake form');
+
+  const statusEl = document.createElement('p');
+  statusEl.className = 'submit-status';
+  statusEl.setAttribute('role', 'status');
+  statusEl.setAttribute('aria-live', 'polite');
+
+  submitBtn.addEventListener('click', () => {
+    submitIntake({ passphraseInput, submitBtn, statusEl });
+  });
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(passphraseInput);
+  wrapper.appendChild(submitBtn);
+  wrapper.appendChild(statusEl);
+
+  return wrapper;
+}
+
+function setSubmitStatus(statusEl, text, kind) {
+  statusEl.textContent = text;
+  statusEl.classList.remove('submit-status-error', 'submit-status-success');
+  if (kind) {
+    statusEl.classList.add(kind === 'error' ? 'submit-status-error' : 'submit-status-success');
+  }
+}
+
+async function submitIntake({ passphraseInput, submitBtn, statusEl }) {
+  const passphrase = passphraseInput.value;
+  if (!passphrase) {
+    setSubmitStatus(statusEl, 'Enter the passphrase before submitting.', 'error');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  const originalText = submitBtn.textContent;
+  submitBtn.textContent = 'Submitting...';
+  setSubmitStatus(statusEl, '');
+
+  try {
+    const response = await fetch(`${BRIDGE_BASE_URL}/submit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Intake-Passphrase': passphrase,
+      },
+      body: JSON.stringify({ answers: getAllValues() }),
+    });
+
+    if (response.status === 403) {
+      setSubmitStatus(statusEl, 'Wrong passphrase.', 'error');
+      return;
+    }
+    if (response.status === 429) {
+      setSubmitStatus(statusEl, 'Too many attempts, try again later.', 'error');
+      return;
+    }
+    if (!response.ok) {
+      setSubmitStatus(statusEl, 'Submission failed — please try again later.', 'error');
+      return;
+    }
+
+    const result = await response.json();
+    statusEl.textContent = '';
+    statusEl.classList.remove('submit-status-error');
+    statusEl.classList.add('submit-status-success');
+    statusEl.appendChild(document.createTextNode('Submitted — thank you.'));
+    if (result && result.compass_pr_url) {
+      statusEl.appendChild(document.createTextNode(' '));
+      const link = document.createElement('a');
+      link.href = result.compass_pr_url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Review queue entry (internal reference)';
+      statusEl.appendChild(link);
+    }
+    passphraseInput.value = '';
+  } catch {
+    setSubmitStatus(statusEl, 'Submission failed — please check your connection and try again.', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
 }
 
 function formatDisplayValue(field, value) {
