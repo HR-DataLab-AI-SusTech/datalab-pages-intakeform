@@ -184,13 +184,27 @@
 /* Outlined on dark: the two downloads are equally valid outcomes, so CSV must read as "less
  * expected", never as "unavailable". White at full strength, not a faded tint — the faded version
  * is precisely what looked disabled before. */
-.btn-outline-light {
+/* ⚠️ `.btn-outline-primary` IS AN ALIAS, KEPT ON PURPOSE — do not delete it as dead code.
+ *
+ * This site has no build step, so assets are served unversioned with `max-age=600`. CSS and JS
+ * therefore expire independently, and for up to ten minutes after a deploy a visitor can hold NEW
+ * css with OLD js. Measured on the live site 2026-08-27: the old js asked for
+ * `.btn-outline-primary`, the new css had renamed it to `.btn-outline-light`, and the CSV button
+ * rendered as an unstyled browser default — grey box, black label, on a dark panel.
+ *
+ * Styling both names identically makes that window harmless in either direction. It is three lines
+ * against a class of bug that is otherwise invisible in testing, because the developer who just
+ * deployed has both halves fresh and never sees it.
+ */
+.btn-outline-light,
+.btn-outline-primary {
   background-color: transparent;
   color: #fff;
   border-color: rgb(255 255 255 / 45%);
 }
 
-.btn-outline-light:hover {
+.btn-outline-light:hover,
+.btn-outline-primary:hover {
   background-color: rgb(255 255 255 / 10%);
   border-color: #fff;
   color: #fff;
