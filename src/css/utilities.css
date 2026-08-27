@@ -18,6 +18,33 @@
   text-align: center;
 }
 
+/* ── Focus ────────────────────────────────────────────────────────────────────────────────────
+ *
+ * 🔺 A PROGRAMMATICALLY FOCUSED HEADING MUST NOT PAINT A FOCUS RING.
+ * `landingRenderer.js` gives the page title `tabIndex = -1` and calls `.focus()` on entry so a
+ * screen reader announces the new page — that part is correct and should stay. The side effect is
+ * that `:focus` also matches for a mouse user who never tabbed anywhere, and with no focus styling
+ * defined the browser painted its own default outline: a blue box around the welcome heading, on a
+ * page whose entire palette is HR red. Visible on the live site until 2026-08-27.
+ *
+ * `tabindex="-1"` means the element is NOT reachable by tabbing, so suppressing the ring here
+ * costs a keyboard user nothing — they can never land on it in the first place.
+ */
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* Everything a keyboard CAN reach keeps a clearly visible, on-brand ring.
+ * `:focus-visible` rather than `:focus`, so it shows for keyboard and assistive-tech users without
+ * appearing on every mouse click. ⚠️ Do not "tidy" this into `outline: none` — the inputs already
+ * replace their outline with a border + shadow of their own, but buttons and the step-indicator
+ * circles (`tabindex="0"`) rely on this rule as their only focus indicator. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
