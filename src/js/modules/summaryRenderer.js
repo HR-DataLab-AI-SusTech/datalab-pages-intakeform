@@ -86,11 +86,24 @@ export function renderSummary(container) {
   const downloadSection = document.createElement('div');
   downloadSection.className = 'download-section';
 
+  // An overline + heading as REAL elements, not CSS `content:` — generated text is not reliably
+  // announced by screen readers and cannot be translated.
+  const overline = document.createElement('p');
+  overline.className = 'download-overline';
+  overline.textContent = summaryPage.downloadOverline || 'Last step';
+
+  const downloadHeading = document.createElement('h3');
+  downloadHeading.className = 'download-heading';
+  downloadHeading.textContent = summaryPage.downloadHeading || 'Take your answers with you';
+
   const downloadText = document.createElement('p');
+  downloadText.className = 'download-intro';
   downloadText.textContent =
     summaryPage.downloadInstructions ||
     'Review your answers above, then download the form.';
 
+  downloadSection.appendChild(overline);
+  downloadSection.appendChild(downloadHeading);
   downloadSection.appendChild(downloadText);
 
   const btnGroup = document.createElement('div');
@@ -104,7 +117,7 @@ export function renderSummary(container) {
   );
 
   btnGroup.appendChild(
-    createDownloadButton('CSV', 'btn-outline-primary', () => {
+    createDownloadButton('CSV', 'btn-outline-light', () => {
       const csv = generateCsv();
       downloadCsv(csv);
     }),
