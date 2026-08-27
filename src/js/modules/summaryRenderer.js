@@ -4,7 +4,7 @@ import { generateMarkdown } from './markdownGenerator.js';
 import { generateCsv } from './csvGenerator.js';
 import { downloadMarkdown, downloadCsv } from './downloadHandler.js';
 import { goToPage } from './pageController.js';
-import { BRIDGE_BASE_URL } from '../config/bridgeConfig.js';
+import { BRIDGE_BASE_URL, SUBMIT_ENABLED } from '../config/bridgeConfig.js';
 
 function getSummaryPage() {
   const formConfig = getFormConfig();
@@ -161,6 +161,20 @@ function createDownloadButton(label, cssClass, onClick) {
 function createSubmitSection() {
   const wrapper = document.createElement('div');
   wrapper.className = 'submit-section';
+
+  // 🔺 Backend not deployed yet ⇒ render an explanation, never a dead button. See SUBMIT_ENABLED
+  // in config/bridgeConfig.js for the three conditions that have to hold before flipping it on.
+  // This page is public the moment anything reaches `main`, so an enabled button that cannot work
+  // is worse for a stakeholder than no button at all: they would fill in the whole form and get a
+  // bare network error.
+  if (!SUBMIT_ENABLED) {
+    const note = document.createElement('p');
+    note.className = 'submit-status';
+    note.textContent =
+      'Online submission is not switched on yet — download your answers above and send the file to the datalab team.';
+    wrapper.appendChild(note);
+    return wrapper;
+  }
 
   const label = document.createElement('label');
   label.textContent = 'Passphrase';
