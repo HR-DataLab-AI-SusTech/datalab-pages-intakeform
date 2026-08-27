@@ -45,8 +45,13 @@ services:
   bridge:
     build: ./bridge
     restart: unless-stopped
-    # bridge/.env, not a repo-root .env — the `web` service needs no secrets at all, so this
-    # repo has no root .env; bridge/.env.example documents the schema right next to what reads it.
+    # 🔺 ONE env file, at the repo ROOT, and it has to be here rather than under bridge/.
+    # Compose reads `.env` NEXT TO THE COMPOSE FILE for ${VAR} interpolation — that is what fills the
+    # ${MESH_IP} in `ports:` below. An env_file somewhere else supplies the container's runtime
+    # environment but is invisible to interpolation, so splitting the two makes compose abort with
+    # "required variable MESH_IP is missing a value" while the variable plainly exists. Hit on the
+    # first real deploy, 2026-08-27. It also matches the reconciler's rule that env_sops renders next
+    # to the compose file. Schema (no values): bridge/.env.example.
     env_file: .env
     environment:
       # The form's own schema, bind-mounted in below — this is where the container reads it from.
