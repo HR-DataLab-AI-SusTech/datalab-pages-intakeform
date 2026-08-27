@@ -737,9 +737,10 @@ function corsHeaders(req) {
   };
 }
 
-/** CORS is already on `res` (set once in the request handler), so this only adds the content type.
- *  The trailing `req` argument some call sites still pass is accepted and ignored, deliberately —
- *  it keeps every existing call valid rather than turning a header fix into a 20-site refactor. */
+/** CORS is already set on `res` once, in the request handler below, so this only adds the content
+ *  type. ⚠️ Do NOT reintroduce a per-call `req` argument: threading the headers through each call
+ *  is what caused the 2026-08-27 bug where /submit and /mcp returned a 200 the browser discarded,
+ *  after a row had already been written. One place sets them, so a new route cannot forget. */
 function sendJson(res, status, obj) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(obj));
@@ -789,21 +790,21 @@ const srv = http.createServer(async (req, res) => {
       // request to protect — but it also must not inherit the global failure lockout, or a
       // passphrase guesser would take drafting down for everyone as a side effect.
       if (perIpLimited(clientIp(req))) {
-        return sendJson(res, 429, { error: "too many attempts, try again later" }, req);
+        return sendJson(res, 429, { error: "too many attempts, try again later" });
       }
       const body = JSON.parse((await readBody(req)) || "{}");
       const submitted_by = callerIdentity(req.headers, "web");
       const id = await upsertDraft({
         draft_id: body.draft_id, answers: body.answers, source: "web", submitted_by,
       });
-      return sendJson(res, 200, { draft_id: id }, req);
+      return sendJson(res, 200, { draft_id: id });
     }
 
     if (req.method === "GET" && /^\/draft\/[^/]+$/.test(pathname)) {
       const id = decodeURIComponent(pathname.slice("/draft/".length));
       const row = await getIntake(id);
-      if (!row) return sendJson(res, 404, { error: "not found" }, req);
-      return sendJson(res, 200, { id: row.id, status: row.status, answers: row.answers, compass_pr_url: row.compass_pr_url }, req);
+      if (!row) return sendJson(res, 404, { error: "not found" });
+      return sendJson(res, 200, { id: row.id, status: row.status, answers: row.answers, compass_pr_url: row.compass_pr_url });
     }
 
     if (req.method === "POST" && pathname === "/submit") {
@@ -818,7 +819,7 @@ const srv = http.createServer(async (req, res) => {
         if (throttled) await sleep(THROTTLE_MS);
         // No detail either way, by design — a wrong/missing passphrase must not tell an attacker
         // which it was, and 429-vs-403 deliberately says nothing about the secret.
-        return sendJson(res, throttled ? 429 : 403, { error: "forbidden" }, req);
+        return sendJson(res, throttled ? 429 : 403, { error: "forbidden" });
       }
 
       const body = JSON.parse((await readBody(req)) || "{}");
@@ -833,7 +834,7 @@ const srv = http.createServer(async (req, res) => {
       const raw = await readBody(req);
       let msgs;
       try { msgs = JSON.parse(raw); }
-      catch { return sendJson(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }, req); }
+      catch { return sendJson(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }); }
 
       const caller = {
         ip: clientIp(req),
@@ -849,11 +850,11 @@ const srv = http.createServer(async (req, res) => {
       return sendJson(res, 200, single ? out[0] : out);
     }
 
-    sendJson(res, 404, { error: "not found" }, req);
+    sendJson(res, 404, { error: "not found" });
   } catch (e) {
     console.log(`bridge: WARNING request failed: ${e && e.message}`);
     if (res.headersSent) return res.end();
-    sendJson(res, 500, { error: "internal error" }, req);
+    sendJson(res, 500, { error: "internal error" });
   }
 });
 
