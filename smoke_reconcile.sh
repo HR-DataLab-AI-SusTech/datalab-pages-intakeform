@@ -12,7 +12,18 @@
 set -euo pipefail
 
 PORT="${BRIDGE_PORT:-3458}"
-BASE="http://127.0.0.1:${PORT}"
+
+# 🔺 NOT 127.0.0.1 — the compose file binds this service to ${MESH_IP} ONLY, deliberately, so
+# nothing is exposed on every interface of a host that also holds the GPU and the LLM gateway.
+# Loopback therefore has nothing listening, and a smoke test aimed there fails every single deploy
+# while the service is perfectly healthy. Found on the first real run, 2026-08-27.
+# The reconciler renders .env next to this script, so read the address from there; fall back to the
+# environment for a hand-run.
+if [ -z "${MESH_IP:-}" ] && [ -r .env ]; then
+  MESH_IP="$(sed -n 's/^MESH_IP=//p' .env | head -1)"
+fi
+[ -n "${MESH_IP:-}" ] || { echo "smoke: FAIL — MESH_IP is unset and .env has no MESH_IP line" >&2; exit 1; }
+BASE="http://${MESH_IP}:${PORT}"
 fail() { echo "smoke: FAIL — $*" >&2; exit 1; }
 
 # 1. The container answers at all. Retried, because `compose up -d` returns before a fresh

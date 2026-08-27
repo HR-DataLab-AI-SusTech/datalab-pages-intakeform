@@ -47,7 +47,7 @@ services:
     restart: unless-stopped
     # bridge/.env, not a repo-root .env — the `web` service needs no secrets at all, so this
     # repo has no root .env; bridge/.env.example documents the schema right next to what reads it.
-    env_file: ./bridge/.env
+    env_file: .env
     environment:
       # The form's own schema, bind-mounted in below — this is where the container reads it from.
       FORM_CONFIG_PATH: /app/formConfig.json

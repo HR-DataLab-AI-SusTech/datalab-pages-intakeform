@@ -20,6 +20,14 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY server.js schema.sql package.json ./
 
+# 🔺 NORMALISE PERMISSIONS, because COPY preserves the BUILDER's file modes and this image runs as
+# an unprivileged user. A checkout made under a restrictive umask (umask 077 is normal on a host
+# that also renders a mode-600 .env next to it) produces mode-600 sources; COPY carries that into
+# the image; `USER node` below then cannot read its own entrypoint and the container crash-loops
+# with `Error: Cannot find module /app/server.js` — which reads like a missing file, not a
+# permission problem. Cost one debug cycle on 2026-08-27.
+RUN chmod -R a+rX /app
+
 EXPOSE 3458
 USER node
 CMD ["node", "server.js"]
