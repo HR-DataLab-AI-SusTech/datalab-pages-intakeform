@@ -21,11 +21,16 @@
   margin-bottom: var(--spacing-xl);
 }
 
+/* 🔺 NEAR-BLACK, not red, and only on THIS title. At 3xl it sat directly beneath a full-width red
+ * header bar, a red CTA below it and a red footer — four reds stacked down one screen, which made
+ * the page read as a warning rather than a welcome. Red still does the branding (header, CTA,
+ * accents); the heading now does the content. The smaller `.page-title` on the question pages stays
+ * red deliberately: at 2xl it reads as an accent rather than competing with the bar. */
 .landing-title {
   font-family: var(--font-display);
   font-size: var(--font-size-3xl);
-  font-weight: 400;
-  color: var(--color-primary);
+  font-weight: 500;
+  color: var(--color-text);
   letter-spacing: -0.02em;
   line-height: 1.15;
   margin-bottom: var(--spacing-md);
@@ -51,7 +56,10 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-lg);
-  margin: var(--spacing-2xl) 0;
+
+  /* Was 2xl top AND bottom — two 3rem gaps in a row left the page feeling unfinished rather than
+   * spacious, with the CTA floating a long way from what it follows. */
+  margin: var(--spacing-xl) 0;
 }
 
 .landing-feature-card {
@@ -73,7 +81,10 @@
   width: 4px;
   height: 100%;
   background: var(--color-primary);
-  transform: scaleY(0);
+
+  /* Visible at rest, fuller on hover. At scaleY(0) the cards had no brand presence at all until
+   * you happened to mouse over one — and a touch user never did. */
+  transform: scaleY(0.35);
   transform-origin: bottom;
   transition: transform var(--transition-normal);
 }
@@ -88,13 +99,16 @@
   transform: scaleY(1);
 }
 
+/* The numerals carry the brand instead of the heading doing it. ⚠️ No `opacity` — muting with
+ * opacity on top of a colour is what hr-visual-design.md records as having pushed the lab website's
+ * text under the AA line; the token is already the intended value. 4.57:1 on the card tint. */
 .landing-feature-icon {
   font-family: var(--font-display);
   font-size: var(--font-size-2xl);
-  color: var(--color-secondary);
+  color: var(--color-primary);
   margin-bottom: var(--spacing-sm);
-  font-weight: 400;
-  opacity: 0.7;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 .landing-feature-title {

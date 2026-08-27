@@ -20,6 +20,31 @@
   --color-border: #e5e7eb;
   --color-border-focus: #e2001a;
 
+  /* ── ON-BRAND SURFACES: anywhere HR red is the BACKGROUND ─────────────────────────────────────
+   *
+   * 🔺 THESE EXIST BECAUSE RED IS AN UNUSUALLY UNFORGIVING BACKGROUND, and the measurements are
+   * recorded so nobody has to rediscover them — or quietly violate them — one component at a time.
+   * Against #e2001a: white 4.94 ✅ · #fff5f6 4.62 ✅ · #f3f4f6 4.49 ❌ · #ffe8ea 4.23 ❌.
+   * A near-white GREY already fails AA. So there is no "muted" text on a red surface: hierarchy
+   * there comes from size and weight, never from a softer colour.
+   *
+   * ⚠️ `--on-brand-scrim` is a BLACK wash, not a white one, and that is the load-bearing detail.
+   * Hover must DARKEN a red surface: +15% white lands on #e6263c where white text drops to 4.46
+   * and fails, while +18% black lands on #b90015 where it rises to 6.83. Lightening a
+   * mid-luminance brand colour under white text is the trap that made an earlier button look
+   * disabled. Do not "brighten" this on hover.
+   */
+  --on-brand-text: #fff;
+  --on-brand-text-dim: #fff5f6;
+  --on-brand-fill: #fff;
+  --on-brand-fill-hover: #fff5f6;
+  --on-brand-border: rgb(255 255 255 / 70%);
+  --on-brand-border-quiet: rgb(255 255 255 / 35%);
+  --on-brand-hairline: rgb(255 255 255 / 28%);
+  --on-brand-scrim: rgb(0 0 0 / 18%);
+  --on-brand-sheen: rgb(255 255 255 / 16%);
+  --on-brand-focus-ring: rgb(255 255 255 / 25%);
+
   /* Typography */
   --font-display: 'Poppins', system-ui, sans-serif;
   --font-body: 'Poppins', system-ui, sans-serif;
