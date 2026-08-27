@@ -161,6 +161,20 @@
   color: #fff;
 }
 
+/* 🔺 A BASE RULE FOR EVERY PARAGRAPH IN THE PANEL, and it is a safety net rather than a style.
+ *
+ * The panel is dark, but body text on this site is near-black. So ANY paragraph in here that does
+ * not match one of the specific rules below inherits #0a0a0a on a dark ground — measured 1.13:1,
+ * i.e. invisible. That is not hypothetical: it happened on the live site the moment this redesign
+ * shipped, because the previous JS emits the intro paragraph with NO class (`.download-intro` is
+ * new), and unversioned assets let old JS run against new CSS for up to ten minutes.
+ * Same cache-skew class as the `.btn-outline-primary` alias below. Setting the readable colour on
+ * the ELEMENT rather than only on the new class means a future rename cannot reintroduce it.
+ */
+.download-section p {
+  color: #cbd5e1;
+}
+
 .download-intro {
   margin: 0 auto var(--spacing-xl);
   max-width: 44ch;
