@@ -292,7 +292,10 @@
   margin: 0 auto;
 }
 
-.start-over-btn {
+/* ⚠️ Scoped too, and it has to be: `.download-section .btn-secondary` above is (0,2,0) and would
+ * otherwise outrank a bare `.start-over-btn` (0,1,0), handing Start Over the same prominent border
+ * as the CSV button. It is meant to be the quietest thing in the panel. */
+.download-section .start-over-btn {
   margin-top: var(--spacing-lg);
   padding: 8px 20px;
   font-size: var(--font-size-sm);
@@ -302,7 +305,7 @@
   border-color: rgb(255 255 255 / 35%);
 }
 
-.start-over-btn:hover {
+.download-section .start-over-btn:hover {
   background-color: rgb(0 0 0 / 18%);
   border-color: rgb(255 255 255 / 70%);
   color: #fff;
