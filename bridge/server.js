@@ -726,8 +726,11 @@ function corsHeaders(req) {
   };
 }
 
-function sendJson(res, status, obj, req) {
-  res.writeHead(status, { "Content-Type": "application/json", ...(req ? corsHeaders(req) : {}) });
+/** CORS is already on `res` (set once in the request handler), so this only adds the content type.
+ *  The trailing `req` argument some call sites still pass is accepted and ignored, deliberately —
+ *  it keeps every existing call valid rather than turning a header fix into a 20-site refactor. */
+function sendJson(res, status, obj) {
+  res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(obj));
 }
 
@@ -735,6 +738,22 @@ const srv = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://localhost");
     const pathname = url.pathname;
+
+    /* 🔺 CORS HEADERS ARE SET ONCE, HERE, FOR EVERY RESPONSE — not passed into each sendJson call.
+     *
+     * They were threaded through individually until 2026-08-27 and two call sites were missed: the
+     * ones returning a VARIABLE rather than an object literal, which happen to be the success paths
+     * of /submit and /mcp. The preflight passed, so it all looked right, and then the real POST came
+     * back with no Access-Control-Allow-Origin and the browser discarded a 200 the server had
+     * happily produced — "Submission failed" in the UI, a successful request in the log, and a row
+     * written to Postgres for a submission the user was told had failed. Found by driving the real
+     * form; no amount of curl would have shown it, because curl does not enforce CORS.
+     *
+     * Setting them on `res` up front means a new route cannot forget them. /mcp is excluded on
+     * purpose (see the OPTIONS handler below): it is for server-side callers only. */
+    if (pathname !== "/mcp") {
+      for (const [k, v] of Object.entries(corsHeaders(req))) res.setHeader(k, v);
+    }
 
     if (req.method === "GET" && pathname === "/healthz") {
       res.writeHead(200, { "Content-Type": "text/plain" });
