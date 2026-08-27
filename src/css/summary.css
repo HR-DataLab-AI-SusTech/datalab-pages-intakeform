@@ -81,7 +81,6 @@
   font-style: italic;
 }
 
-/* Download section */
 /* ── Download / submit panel ───────────────────────────────────────────────────────────────────
  *
  * 🔺 A LIGHT PANEL WITH A RED ACCENT, not a saturated red panel. It was a full-bleed
@@ -113,7 +112,7 @@
 .download-section::before {
   content: '';
   position: absolute;
-  inset: 0 0 auto 0;
+  inset: 0 0 auto;
   height: 4px;
   background: var(--color-primary);
 }
@@ -170,17 +169,3 @@
   padding: 12px 28px;
 }
 
-.start-over-btn {
-  margin-top: var(--spacing-md);
-  font-size: var(--font-size-sm);
-  opacity: 0.7;
-  border-color: rgb(255 255 255 / 20%);
-  color: var(--color-primary-light);
-}
-
-.start-over-btn:hover {
-  opacity: 1;
-  border-color: rgb(255 255 255 / 40%);
-  background-color: rgb(255 255 255 / 10%);
-  color: var(--color-surface);
-}
