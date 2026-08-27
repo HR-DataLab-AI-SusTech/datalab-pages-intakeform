@@ -1,8 +1,18 @@
 services:
+  # 🔺 LOCAL DEV ONLY — behind a profile, so `docker compose up -d` does NOT start it.
+  # That matters because this stack is deployed to PC-1 by lab-reconcile, which runs exactly that
+  # command. Production serves the form from GitHub Pages, so an nginx here would (a) publish a
+  # SECOND, redundant copy of the form from a pinned commit and (b) do it on 0.0.0.0:8080 — a port
+  # bound to every interface on the host that holds the GPU and the LLM gateway. The estate's rule
+  # is that no published port lacks an explicit bind address (compass-assistant's CI asserts it),
+  # and this was breaking it.
+  # Run it deliberately:  docker compose --profile dev up web
   web:
+    profiles: ["dev"]
     image: nginx:alpine
     ports:
-      - "8080:80"
+      # Loopback, not 0.0.0.0: this is a developer previewing the form on their own machine.
+      - "127.0.0.1:8080:80"
     volumes:
       - ./src:/usr/share/nginx/html:ro
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
@@ -19,8 +29,13 @@ services:
       # The form's own schema, bind-mounted in below — this is where the container reads it from.
       FORM_CONFIG_PATH: /app/formConfig.json
     volumes:
-      # Read-only, same idea as compass-board's bridge mounting the Compass corpus: one source of
-      # truth for what questions exist, no second copy to drift.
+      # ⚠️ THE FALLBACK COPY, NOT THE SOURCE OF TRUTH — this comment used to claim the opposite
+      # ("one source of truth, no second copy to drift"), which was wrong in a way nothing would
+      # have reported. GitHub Pages publishes the form from `main` on every push; this container is
+      # deployed from an immutable sha pinned in infrastructure/deployments. Same file, two
+      # commits. So server.js fetches the LIVE published schema and uses this mount only when that
+      # fetch fails — see getFormConfig(). Keep the mount: it is what makes a GitHub outage a
+      # degradation instead of a broken tool.
       - ./src/config/formConfig.json:/app/formConfig.json:ro
     ports:
       # Mesh-bound only, never 0.0.0.0 — same pattern as compass-board's bridge and every other
