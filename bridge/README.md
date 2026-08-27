@@ -85,6 +85,16 @@ curl -s -o /dev/null -w '%{http_code}\n' -X OPTIONS localhost:3458/mcp
 [`compass-board`](https://github.com/HR-DataLab-AI-SusTech/compass-board)'s bridge. `submit_intake`
 still requires the passphrase.
 
+## Three traps this stack already hit — all on its first deploy
+
+Kept because each one presents as something other than what it is.
+
+| Symptom | Actual cause |
+| --- | --- |
+| `Cannot find module /app/server.js` | **Permissions, not a missing file.** `COPY` preserves the *builder's* file modes, and a checkout made under `umask 077` — normal on a host that also renders a mode-600 `.env` beside it — produces mode-600 sources that `USER node` cannot read. Fixed with `chmod -R a+rX /app` after the COPYs, so the image no longer depends on the umask of whoever built it. |
+| `required variable MESH_IP is missing a value` — while it plainly existed | Compose reads `.env` **next to the compose file** for `${VAR}` interpolation. An `env_file` elsewhere supplies the container's runtime environment but is invisible to interpolation. One file at the repo root now serves both, which also matches the reconciler's rule that `env_sops` renders next to the compose file. |
+| the smoke test failed on a perfectly healthy service | It probed `127.0.0.1`. The compose binds to `${MESH_IP}` **only**, deliberately, so loopback has nothing listening. It reads `MESH_IP` from the rendered `.env` now. |
+
 ## Two things not to "simplify" later
 
 🔺 **The global failed-attempt counter is the real brute-force control, not the per-IP one.**
