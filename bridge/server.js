@@ -538,7 +538,9 @@ async function fileIntoCompass(row) {
       : Object.entries(answers).map(([k, v]) => `- **${k}**: ${v ? String(v) : "_(no answer)_"}`).join("\n");
     const prBody = [
       `This is a project **intake submission awaiting triage** — not a new project. It was filed ` +
-        `automatically by the datalab-intake-form bridge when the submitter entered the shared passphrase.`,
+        `automatically by the datalab-intake-form bridge, via **${row.source || "unknown"}**. ` +
+        `\`web\` = the public form, gated by the shared passphrase. \`chat\` = an authenticated user ` +
+        `on the lab mesh, identified below rather than by a shared word.`,
       "",
       `Intake row: \`${row.id}\` in the bridge's Postgres \`intakes\` table.`,
       "",
@@ -621,25 +623,34 @@ const TOOLS = {
 
   submit_intake: {
     description: "Finalize a draft: marks it submitted and files it into the Compass review queue. " +
-      "Requires the shared passphrase — same gate as the web form's Submit button.",
-    inputSchema: { type: "object", required: ["draft_id", "passphrase"], properties: {
+      "No passphrase — the chat path is already behind a login on the lab mesh. Confirm the answers " +
+      "with the user first; this is the step that cannot be undone from chat.",
+    // 🔺 NO PASSPHRASE ON THIS PATH, and removing it made the system SAFER, not laxer.
+    //
+    // The passphrase exists for the PUBLIC web form, where there is no login and it is the only
+    // gate. REST /submit therefore still requires it — do not "simplify" that one to match.
+    //
+    // Through chat it was worse than redundant. Redundant because this bridge binds to the mesh
+    // only and LibreChat authenticates every user, so a caller has already passed two gates that
+    // a shared word does not strengthen. Worse because the only way to supply it was to TYPE A
+    // SHARED SECRET INTO A CHAT BOX — and LibreChat persists conversations in Mongo, so every use
+    // wrote the passphrase into stored history, unencrypted, where the next person to read that
+    // conversation (or restore that database) would find it. A gate whose use leaks the credential
+    // it checks is a net loss.
+    //
+    // ℹ️ Attribution did not depend on it and is now the stronger signal: `caller.actor` comes from
+    // a header LibreChat substitutes SERVER-SIDE, so the model cannot forge it — measured, a real
+    // chat submission recorded the user's own address. A shared passphrase proved only that
+    // somebody knew a word; the header says who.
+    //
+    // ⚠️ `passphrase` stays declared but IGNORED so an agent still running the old prompt does not
+    // hard-fail mid-conversation. Nothing reads it. Remove the property once no prompt sends it.
+    inputSchema: { type: "object", required: ["draft_id"], properties: {
       draft_id: { type: "string" },
-      passphrase: { type: "string" },
+      passphrase: { type: "string", description: "Ignored, kept for compatibility. Do not ask for one." },
     } },
-    async run({ draft_id, passphrase }, caller) {
+    async run({ draft_id }, caller) {
       if (!draft_id) return { error: "draft_id is required" };
-      // 🔺 RATE LIMIT BEFORE THE PASSPHRASE, and the order is the whole point: rateLimited()
-      // INCREMENTS the counter as a side effect, so checking the passphrase first meant a wrong
-      // guess returned here without ever being counted — i.e. unlimited guessing through this
-      // door, which is exactly what the comment on RATE_LIMIT_MAX says must not happen. Keep
-      // this identical to the REST /submit ordering.
-      // Same shape as REST /submit: verify first, throttle only failures. A correct passphrase is
-      // never refused, so a guesser cannot lock out the chat agent by hammering this tool.
-      if (!safeEqual(passphrase, PASSPHRASE)) {
-        noteFailedAttempt();
-        if (rateLimited(caller.ip)) await sleep(THROTTLE_MS);
-        return { error: "forbidden" };
-      }
       const row = await getIntake(draft_id);
       if (!row) return { error: `no intake with id ${draft_id}` };
       const result = await finalizeSubmission({
