@@ -74,12 +74,22 @@ problem:
 
 - HR red: #e2001a (header, primary — buttons, active steps)
 - Near-black: #0a0a0a (decorative accent bars, info links, foreground text)
-- Green: #3f7d20 (CTA, success — download button, completed steps)
+- Green: #3f7d20 (completed steps only — ⚠️ NOT the download button any more, see below)
 - Cool grey-white: #f4f6fb (background)
 - Light neutral borders: #e5e7eb
 - Distinct error red: #dc2828 (never the same red as primary — the two must stay
   visually separable)
 - Font: Poppins (self-hosted, no Google Fonts — privacy-safe)
+
+🔺 **`src/css/variables.css` is the authority, not this list.** The palette is repeated here only so
+an assistant has it to hand; if the two disagree, the stylesheet is right and this list needs fixing.
+It also holds the `--on-brand-*` tokens for surfaces where red is the *background* — read their
+contrast measurements before styling anything on the red panel, because only white clears AA there.
+
+⚠️ **The download button is white-filled with a red label, not green.** Green stood out against an
+earlier red panel, which is exactly the green/red pairing the HR guide warns about — it collapses
+under deuteranopia. The panel is HR red now: the primary action is a white block, the secondary a
+white outline. Neither is green, and neither is red.
 
 ## Frontend Design Skill
 
