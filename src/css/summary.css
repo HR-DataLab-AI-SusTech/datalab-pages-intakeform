@@ -180,7 +180,20 @@
   justify-content: center;
 }
 
-/* PRIMARY on red: a white block. Nothing else available here is both non-red and this visible. */
+/* 🔺 SCOPED BY ANCESTOR, NOT BY CLASS NAME — and that is the whole point of these two selectors.
+ *
+ * `.btn-primary` is HR red, which is correct everywhere else on this site and invisible here. It
+ * cannot be aliased globally for that reason. But this site has no build step, so unversioned CSS
+ * and JS expire independently and old JS can emit a retired class for up to ten minutes after a
+ * deploy — which is exactly what happened three times today: `.btn-outline-primary`, then an
+ * unclassed `<p>`, then `.btn-primary` rendering red-on-red.
+ *
+ * Matching on "any primary-ish button INSIDE this panel" removes the whole class of failure: it is
+ * true for every JS version, past and future, and it leaves `.btn-primary` alone on the light
+ * pages where red is right. Do not narrow these back to a single class name.
+ */
+.download-section .btn-primary,
+.download-section .btn-success,
 .btn-on-brand {
   background-color: #fff;
   color: var(--color-primary);
@@ -188,6 +201,8 @@
   font-weight: 700;
 }
 
+.download-section .btn-primary:hover,
+.download-section .btn-success:hover,
 .btn-on-brand:hover {
   background-color: #fff5f6;
   color: var(--color-primary-hover);
@@ -201,6 +216,7 @@
  * step, so unversioned CSS and JS expire independently and old JS can ask for a retired class name
  * for up to ten minutes after a deploy. Both older names rendered an unstyled browser default when
  * that happened. Do not delete them as dead code. */
+.download-section .btn-secondary,
 .btn-outline-on-brand,
 .btn-outline-light,
 .btn-outline-primary {
@@ -210,6 +226,7 @@
   font-weight: 600;
 }
 
+.download-section .btn-secondary:hover,
 .btn-outline-on-brand:hover,
 .btn-outline-light:hover,
 .btn-outline-primary:hover {
