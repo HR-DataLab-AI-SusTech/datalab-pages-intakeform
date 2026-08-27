@@ -171,7 +171,7 @@ function createSubmitSection() {
     const note = document.createElement('p');
     note.className = 'submit-status';
     note.textContent =
-      'Online submission is not switched on yet — download your answers above and send the file to the datalab team.';
+      'Online submission is not switched on yet — send the downloaded file to the datalab team.';
     wrapper.appendChild(note);
     return wrapper;
   }

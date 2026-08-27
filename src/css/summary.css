@@ -156,6 +156,23 @@
   transform: translateY(-1px);
 }
 
+/* The submit-state note sits BELOW the download buttons, so it needs its own separation — without
+ * it the sentence reads as a caption on the CSV button rather than a statement about the panel. */
+.submit-section {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  position: relative;
+}
+
+.submit-section .submit-status {
+  margin: 0 auto;
+  max-width: 46ch;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
 /* Start Over is destructive-ish and rarely wanted: legible, never competing. */
 .start-over-btn {
   margin-top: var(--spacing-lg);
