@@ -103,6 +103,21 @@ best-effort UX only. Deleting the global counter because per-IP looks sufficient
 guessing against the single shared passphrase — which is the *only* authentication this endpoint
 has. Deleting the per-IP one instead is harmless.
 
+🔺 **Do not swap the hand-rolled MCP layer for `@modelcontextprotocol/sdk` without a trigger.**
+This server implements MCP-over-HTTP by hand — `initialize` (with real version negotiation),
+`notifications/initialized`, `ping`, `tools/list`, `tools/call`, batch arrays, `-32700` — over
+**POST only**. What it does *not* have: `GET /mcp` + SSE for server→client messages,
+`Mcp-Session-Id` sessions, resumability, progress notifications, and any capability beyond `tools`.
+None of that is needed for five short synchronous tool calls, and the envelope is identical to
+`compass-board`'s, which has been in production for weeks.
+
+⚠️ **The risk being accepted is correlated failure:** both bridges share this implementation and the
+same supported-revision list, so a client raising its required revision breaks **both at once**.
+`mcp-conformance.mjs` exists to catch exactly that — it is read-only, so point it at either bridge.
+**Adopt the SDK the first time either bridge needs streaming, progress notifications, resources, or
+a third protocol revision.** Not before: rewriting a proven transport for tidiness trades a known
+quantity for an untested one.
+
 🔺 **The startup guard that refuses an empty `INTAKE_SUBMIT_PASSPHRASE` is load-bearing.** With no
 passphrase set, a request that sends no passphrase would otherwise *match*. Do not downgrade it to
 a warning.
