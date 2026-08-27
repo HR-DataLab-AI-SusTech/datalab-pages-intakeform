@@ -1,0 +1,14 @@
+{
+  "name": "datalab-intake-bridge",
+  "version": "1.0.0",
+  "description": "REST + MCP bridge for the AI SusTech Datalab intake form. Talks to Postgres, so unlike compass-board's zero-dependency bridge this one carries a real dependency (pg) — see bridge/README or the PR description for why that deviation is accepted.",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

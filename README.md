@@ -4,7 +4,13 @@
 
 A config-driven, multi-step intake form for the AI SusTech Datalab. Collects data & AI project requests through a guided questionnaire and exports the results as Markdown or CSV.
 
-No database, no backend — just static HTML/CSS/JS deployed to GitHub Pages (or served locally via Docker).
+**The form itself is still static HTML/CSS/JS on GitHub Pages** — no build step, no framework, and
+filling it in and downloading your answers sends nothing anywhere.
+
+Since 2026-08-27 there is *also* an optional backend, [`bridge/`](bridge/README.md), which stores a
+submission in Postgres and files it into a review queue in Compass. It is **opt-in and currently
+switched off** (`SUBMIT_ENABLED` in [`src/js/config/bridgeConfig.js`](src/js/config/bridgeConfig.js))
+because it is not deployed yet — so today the form behaves exactly as it always has.
 
 ![Landing Page](docs/frontpage_screenshot.jpeg)
 
@@ -385,7 +391,7 @@ docker-compose.yml                  # Mounts src/ as volume on port 8080
 
 - **Config-driven rendering** — All questions, options, labels, and UI text live in `formConfig.json`. The renderer reads this config and builds the DOM dynamically. Adding a question means editing one file.
 - **No build step** — Uses native ES modules (`<script type="module">`). No bundler, no transpiler.
-- **No database** — Form state lives in `sessionStorage` (survives page refresh, cleared when the tab closes). The deliverable is the downloaded file.
+- **No database *in the page*** — form state lives in `sessionStorage` (survives a refresh, cleared when the tab closes), and the download is always a complete deliverable on its own. ⚠️ This bullet used to read "No database" flatly; that stopped being the whole truth when [`bridge/`](bridge/README.md) was added. The *form* still stores nothing server-side, but pressing **Submit** — when it is enabled — posts the answers to that backend. The download-only path never does.
 - **Browser history** — Each page pushes a readable hash to the URL (e.g. `#use-case-description`). Back/forward buttons work. Direct links to specific pages work.
 - **Step validation** — Users can only navigate to pages they've already visited via the step indicator. The Next button validates required fields before advancing.
 - **CSS custom properties** — All colors, fonts, and spacing are defined as variables in `variables.css`. Rebranding requires editing only that file.
