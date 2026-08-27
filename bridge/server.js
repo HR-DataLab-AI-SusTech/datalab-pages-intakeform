@@ -185,7 +185,18 @@ const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const rateLimitMap = new Map(); // ip -> { count, resetAt }
 
-function rateLimited(ip) {
+/* 🔺 CALL THIS ONLY ON A PATH THAT HAS ALREADY FAILED, OR THAT HAS NO PASSPHRASE AT ALL.
+ *
+ * It must never sit in front of a request carrying the RIGHT passphrase. Putting it there is a
+ * denial-of-service with extra steps: an anonymous attacker sends enough bad guesses to trip the
+ * global counter and every legitimate submission is refused for the rest of the window — cheaper
+ * to mount than guessing the secret, and repeatable forever. Measured on a live bridge before this
+ * was split out: 31 spoofed failures, and a correct passphrase from a clean address then got 429.
+ *
+ * A correct passphrase is itself proof the caller is entitled to submit, so there is nothing left
+ * to rate-limit; throttling it protects nobody.
+ */
+function perIpLimited(ip) {
   const now = Date.now();
   let entry = rateLimitMap.get(ip);
   if (!entry || now > entry.resetAt) {
@@ -193,9 +204,20 @@ function rateLimited(ip) {
     rateLimitMap.set(ip, entry);
   }
   entry.count++;
-  if (entry.count > RATE_LIMIT_MAX) return true;
-  return globalLimitReached();
+  return entry.count > RATE_LIMIT_MAX;
 }
+
+/** Per-IP OR the spoof-proof global counter. For failure paths only. */
+function rateLimited(ip) {
+  return perIpLimited(ip) || globalLimitReached();
+}
+
+/* Slow a guesser without ever refusing a legitimate caller. Once the failure counters are tripped
+ * every WRONG answer costs two seconds, which is ruinous for a script and unnoticeable to a person
+ * who mistyped once. This is the part that actually makes brute force impractical — the 429 below
+ * is only a label on it. */
+const THROTTLE_MS = 2000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* The spoof-proof half. The passphrase is a SINGLE SHARED SECRET, so what has to be bounded is the
  * total number of guesses against it, not the number per claimed source address. This counter is
@@ -544,7 +566,22 @@ async function fileIntoCompass(row) {
 
 /* ── MCP tools ─────────────────────────────────────────────────────────────────────────────── */
 
+/* The revision this server implements, and the set it will agree to.
+ *
+ * 🔺 SPEC REQUIREMENT, and the reason this is a list rather than a constant: on `initialize` the
+ * server must respond with the client's requested revision IF it supports it, and only otherwise
+ * fall back to one of its own. Asserting a single version regardless of what was asked is the one
+ * genuinely non-conformant thing this hand-rolled server did — a client pinned to an older
+ * revision could be told a version it never asked for and disconnect.
+ *
+ * ⚠️ WHY 2024-11-05 IS DELIBERATELY ABSENT, even though the tool calls themselves would work:
+ * that revision mandates the older HTTP+SSE transport (a `GET` endpoint streaming events), which
+ * this server does not implement. Agreeing to it would make a conforming client switch to a
+ * transport that is not here and fail — worse than declining it. Only the Streamable-HTTP
+ * revisions belong in this list, and for a POST-only tools server they are interchangeable.
+ */
 const PROTOCOL = "2025-06-18";
+const SUPPORTED_PROTOCOLS = ["2025-06-18", "2025-03-26"];
 
 const TOOLS = {
   get_intake_schema: {
@@ -596,8 +633,13 @@ const TOOLS = {
       // guess returned here without ever being counted — i.e. unlimited guessing through this
       // door, which is exactly what the comment on RATE_LIMIT_MAX says must not happen. Keep
       // this identical to the REST /submit ordering.
-      if (rateLimited(caller.ip)) return { error: "too many attempts, try again later" };
-      if (!safeEqual(passphrase, PASSPHRASE)) { noteFailedAttempt(); return { error: "forbidden" }; }
+      // Same shape as REST /submit: verify first, throttle only failures. A correct passphrase is
+      // never refused, so a guesser cannot lock out the chat agent by hammering this tool.
+      if (!safeEqual(passphrase, PASSPHRASE)) {
+        noteFailedAttempt();
+        if (rateLimited(caller.ip)) await sleep(THROTTLE_MS);
+        return { error: "forbidden" };
+      }
       const row = await getIntake(draft_id);
       if (!row) return { error: `no intake with id ${draft_id}` };
       const result = await finalizeSubmission({
@@ -630,9 +672,14 @@ async function dispatch(msg, caller) {
   const { id, method, params } = msg;
   const ok = (result) => ({ jsonrpc: "2.0", id, result });
   switch (method) {
-    case "initialize":
-      return ok({ protocolVersion: PROTOCOL, capabilities: { tools: {} },
+    case "initialize": {
+      // Echo the client's revision when we support it; otherwise answer with ours and let the
+      // client decide whether to proceed. Never silently assert a version nobody asked for.
+      const asked = params?.protocolVersion;
+      const agreed = SUPPORTED_PROTOCOLS.includes(asked) ? asked : PROTOCOL;
+      return ok({ protocolVersion: agreed, capabilities: { tools: {} },
         serverInfo: { name: "datalab-intake-bridge", version: "1.0.0" } });
+    }
     case "notifications/initialized": return null;
     case "ping": return ok({});
     case "tools/list":
@@ -708,7 +755,10 @@ const srv = http.createServer(async (req, res) => {
       // That makes it a public unauthenticated write, so it gets the same limiter as /submit;
       // otherwise it is an open invitation to fill the table with rows. (readBody already caps the
       // payload, so the remaining lever is request COUNT.)
-      if (rateLimited(clientIp(req))) {
+      // Per-IP ONLY here, deliberately: this route has no passphrase, so there is no "correct"
+      // request to protect — but it also must not inherit the global failure lockout, or a
+      // passphrase guesser would take drafting down for everyone as a side effect.
+      if (perIpLimited(clientIp(req))) {
         return sendJson(res, 429, { error: "too many attempts, try again later" }, req);
       }
       const body = JSON.parse((await readBody(req)) || "{}");
@@ -728,13 +778,17 @@ const srv = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && pathname === "/submit") {
       const ip = clientIp(req);
-      if (rateLimited(ip)) return sendJson(res, 429, { error: "too many attempts, try again later" }, req);
-
+      // Order matters and is the opposite of the obvious one: verify FIRST, and let the limiter
+      // touch only the requests that got it wrong. See rateLimited()'s comment for why guarding
+      // the success path turns this into a DoS.
       const passphrase = req.headers["x-intake-passphrase"];
       if (!safeEqual(passphrase, PASSPHRASE)) {
-        // No detail, by design — a wrong/missing passphrase must not tell an attacker which it was.
         noteFailedAttempt();
-        return sendJson(res, 403, { error: "forbidden" }, req);
+        const throttled = rateLimited(ip);
+        if (throttled) await sleep(THROTTLE_MS);
+        // No detail either way, by design — a wrong/missing passphrase must not tell an attacker
+        // which it was, and 429-vs-403 deliberately says nothing about the secret.
+        return sendJson(res, throttled ? 429 : 403, { error: "forbidden" }, req);
       }
 
       const body = JSON.parse((await readBody(req)) || "{}");
