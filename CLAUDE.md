@@ -16,7 +16,38 @@ docker compose up     # Serve on localhost:8080
 
 - **Production**: GitHub Pages — auto-deployed via `.github/workflows/deploy-pages.yml` on push to `main`
 - **Live URL**: https://hr-datalab-ai-sustech.github.io/datalab-pages-intakeform/
-- **Local**: `docker compose up` on localhost:8080
+- **Local**: `docker compose --profile dev up` on localhost:8080 (the `dev` profile also starts a
+  throwaway Postgres for the bridge — see [`bridge/README.md`](bridge/README.md))
+- **The bridge** is a container on PC-1, deployed separately from this page. Pushing here does NOT
+  deploy it.
+
+### 🔺 CSS and JS can be a deploy out of step with each other — style defensively
+
+There is **no build step**, so assets ship unversioned and GitHub Pages serves them with
+`max-age=600`. CSS and JS therefore expire **independently**: for up to ten minutes after a deploy a
+visitor can hold **new CSS with old JS**. Versioning the entry point does not fix it — `main.js`
+imports the other modules by bare relative path and nothing rewrites them.
+
+⚠️ **This class of bug is invisible while developing**: whoever just deployed has both halves fresh
+and never sees it. It produced three real faults on 2026-08-27, each looking like a different
+problem:
+
+| Symptom | Actual cause |
+| --- | --- |
+| a button rendered as an unstyled browser default | CSS renamed the class; old JS asked for the old name |
+| panel text invisible at **1.13:1** | the new class carried the colour; old JS emits the element with no class |
+| a button rendered **red on a red panel** | old JS emitted `.btn-primary`, which *is* HR red |
+
+⭐ **So write CSS that does not depend on which JS emitted the markup:**
+
+1. **Match on ancestor, not on class name** — `.download-section .btn-primary` is true for every JS
+   version, past and future, and needs no maintaining. An alias only survives until the next rename.
+2. **Put colour on the element** (`.download-section p`), not only on a new class, so markup the CSS
+   has not been told about cannot render unreadable.
+3. **Keep a retired class name as an alias** when the above cannot apply, and say why — the aliases
+   in `summary.css` are not dead code.
+4. **Verify under the failing condition**, not after a clean reload: hold the old JS and confirm it
+   still renders. A screenshot from a fresh browser proves nothing about a returning visitor.
 
 ## Privacy
 
