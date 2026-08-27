@@ -17,6 +17,29 @@ services:
       - ./src:/usr/share/nginx/html:ro
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
+  # 🔺 LOCAL DEV ONLY, same profile — a throwaway Postgres so the bridge can be run end-to-end on a
+  # laptop with no lab credentials and no mesh. Production's database is the `intake` database on
+  # central-database's pg-oltp cluster and has nothing to do with this container.
+  # schema.sql is mounted into docker-entrypoint-initdb.d, so the table exists on first boot.
+  # ⚠️ No volume: the data is deliberately thrown away when the container is removed. Do not add
+  # one — a dev database that accumulates state stops reproducing the fresh-install path.
+  postgres-dev:
+    profiles: ["dev"]
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: devonly
+      POSTGRES_USER: intake
+      POSTGRES_DB: intake
+    ports:
+      - "127.0.0.1:5433:5432"   # 5433 so it cannot collide with a real local Postgres on 5432
+    volumes:
+      - ./bridge/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intake -d intake"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # REST + MCP bridge for the intake form. Postgres (the `intake` database) lives on another
   # host — see central-database — so there is nothing here for this service to depend_on.
   bridge:
