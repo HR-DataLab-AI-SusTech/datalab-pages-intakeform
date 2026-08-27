@@ -168,7 +168,7 @@
 .form-input:focus {
   border-color: var(--color-primary);
   background-color: var(--color-surface);
-  box-shadow: 0 0 0 4px rgb(10 48 73 / 8%);
+  box-shadow: 0 0 0 4px rgb(226 0 26 / 8%);
 }
 
 /* Error states */
@@ -180,7 +180,7 @@
 
 .form-textarea.field-error:focus,
 .form-input.field-error:focus {
-  box-shadow: 0 0 0 4px rgb(155 39 67 / 10%);
+  box-shadow: 0 0 0 4px rgb(220 40 40 / 10%);
 }
 
 /* Radio groups */
@@ -337,7 +337,7 @@
 .form-select:focus {
   border-color: var(--color-primary);
   background-color: var(--color-surface);
-  box-shadow: 0 0 0 4px rgb(10 48 73 / 8%);
+  box-shadow: 0 0 0 4px rgb(226 0 26 / 8%);
 }
 
 .form-select.field-error {

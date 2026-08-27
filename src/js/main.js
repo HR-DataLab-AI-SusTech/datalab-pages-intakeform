@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const container = document.getElementById('form-container');
   if (container) {
     container.innerHTML =
-      '<div style="text-align:center;padding:3rem;color:#6b6560;">Loading...</div>';
+      '<div style="text-align:center;padding:3rem;color:#666d7a;">Loading...</div>';
   }
 
   try {

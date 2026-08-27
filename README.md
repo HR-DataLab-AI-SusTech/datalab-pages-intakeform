@@ -15,7 +15,7 @@ No database, no backend — just static HTML/CSS/JS deployed to GitHub Pages (or
 ### GitHub Pages (production)
 
 Pushes to `main` automatically deploy via GitHub Actions. The site is live at:
-https://hr-datalab-ai-sustech.github.io/general-pages-intakeform/
+https://hr-datalab-ai-sustech.github.io/datalab-pages-intakeform/
 
 ### Using Docker (local development)
 
@@ -345,7 +345,7 @@ src/
   config/
     formConfig.json                  # All form content as JSON (edit this!)
   assets/
-    favicon.svg                     # SVG favicon (AI monogram)
+    favicon.svg                     # SVG favicon (HR-red rounded mark, white check)
     fonts/                          # Self-hosted Poppins woff2 files (privacy-safe)
   css/
     fonts.css                       # @font-face declarations for Poppins
@@ -399,10 +399,11 @@ To change the visual appearance, edit `src/css/variables.css`:
 
 ```css
 :root {
-  --color-primary: #0a3049;       /* Header, buttons, active steps */
-  --color-secondary: #9b2743;     /* Accent, info links, error states */
-  --color-success: #5a8a3c;       /* Download button, completed steps */
-  --color-bg: #f7f4ef;            /* Page background */
+  --color-primary: #e2001a;       /* Header, buttons, active steps */
+  --color-secondary: #0a0a0a;     /* Accent bars, info links */
+  --color-error: #dc2828;         /* Error states — kept distinct from primary */
+  --color-success: #3f7d20;       /* Download button, completed steps */
+  --color-bg: #f4f6fb;            /* Page background */
   --color-surface: #fff;          /* Card / form background */
   --font-display: 'Poppins', system-ui, sans-serif;
   --font-body: 'Poppins', system-ui, sans-serif;
