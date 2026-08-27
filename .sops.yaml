@@ -1,0 +1,30 @@
+# SOPS creation rules for this stack's runtime secret.
+#
+# `bridge/env.sops` is the bridge's `.env`, encrypted. lab-reconcile renders it to `.env`
+# (mode 0600) on every converge — see `env_sops` in infrastructure/deployments/datalab-ubuntu-1.yaml.
+# The rationale lives once, in that repo's reconcile/README.md, and is not restated here.
+#
+# ⚠️ THREE RECIPIENTS, not one — the same three as compass-assistant, compass-board and llm-serving,
+# because it is the same host. Stacks on one box share a host key by construction; that is a
+# property of the key, not a coupling between stacks.
+#   · datalab-ubuntu-1 — the consumer; decrypts unattended at reconcile time
+#   · operator laptop  — so a value can be rotated without SSHing in to read the old one
+#   · breakglass       — offline; only if operator keys are gone
+# Public halves and owners: infrastructure/secrets/host-age-keys.yaml. An age public key can only
+# encrypt, so listing them here is safe.
+#
+# ⚠️ This file holds NO secret and must never be encrypted — sops reads it to know what to encrypt.
+# If PC-1 is rebuilt its key changes and env.sops must be re-encrypted (`sops updatekeys env.sops`),
+# or this stack stops converging: the reconciler reports the failure and leaves `.env` alone rather
+# than starting the bridge with no database password.
+#
+# 🔺 `env_sops` renders next to the COMPOSE file, not at the checkout root — and this stack's
+# compose file IS at the root, while env.sops lives in bridge/. The compose service therefore
+# declares `env_file: ./bridge/.env` explicitly rather than relying on Compose's default lookup.
+creation_rules:
+  - path_regex: (^|/)env\.sops$
+    input_type: dotenv
+    age: >-
+      age1mmm26kx0ccglvthntph8aj39kya23h94tzntf00ffpq207jgavns7l7fz9,
+      age1g22jwygv023legavjtpqklhxn7mgvkv5cqt82557z96u230zx9yqk3vkvf,
+      age10r3v9f97awk0ppzzv57x0dkkqf43lkch2atxazj5qpc5cv0me95qgld80f
