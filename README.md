@@ -7,16 +7,16 @@ A config-driven, multi-step intake form for the AI SusTech Datalab. Collects dat
 **The form itself is still static HTML/CSS/JS on GitHub Pages** — no build step, no framework, and
 filling it in and downloading your answers sends nothing anywhere.
 
-Since 2026-08-27 there is *also* an optional backend, [`bridge/`](bridge/README.md), which stores a
-submission in Postgres and files it into a review queue in Compass. It is **deployed and running**,
-but Submit is **switched off** (`SUBMIT_ENABLED` in
-[`src/js/config/bridgeConfig.js`](src/js/config/bridgeConfig.js)) — so today the form behaves exactly
-as it always has: fill in, download, send the file.
+Since 2026-08-27 there is *also* a backend, [`bridge/`](bridge/README.md), which stores a submission
+in Postgres and files it into a review queue in Compass. **Since 2026-08-28 Submit is ON**
+(`SUBMIT_ENABLED` in [`src/js/config/bridgeConfig.js`](src/js/config/bridgeConfig.js)): the form still
+downloads Markdown/CSV exactly as before, and now also offers a passphrase-gated Submit.
 
-⚠️ **Why it is off, since "deployed but disabled" invites the wrong guess.** The bridge is reachable
-only over the lab's private network, and that network's public entry point is currently failing for
-reasons outside this project. Enabling Submit before it recovers would put a button on a public page
-that cannot work. The one check that says it is safe to enable is in
+🔺 **The endpoint is public, and `/mcp` deliberately is not.** Enabling Submit meant publishing
+`intake.twinhub.nl` to the internet rather than the mesh — otherwise a visitor's browser could never
+reach it. The bridge therefore runs **two listeners**: the mesh one serves every route, and the
+published one serves the browser REST routes and refuses `/mcp`, which carries an unauthenticated
+`submit_intake` and an unfiltered `list_recent_intakes`. Details and the checks that prove it:
 [`bridge/README.md`](bridge/README.md).
 
 ![Landing Page](docs/frontpage_screenshot.jpeg)
@@ -63,9 +63,9 @@ npx serve src -l 8080
 2. The user navigates through 6 question pages covering use-case, regulations, data, and tech stack
 3. The **summary page** shows all answers with "Edit" links to jump back to any section
 4. Download the completed intake as **Markdown** or **CSV** — the filename carries the project name
-5. Optionally **Submit** it to the lab's own backend, if that has been switched on
-   (`SUBMIT_ENABLED` in `src/js/config/bridgeConfig.js`); otherwise the page says so plainly instead
-   of showing a button that cannot work
+5. Optionally **Submit** it to the lab's own backend — on since 2026-08-28, gated by a shared
+   passphrase (`SUBMIT_ENABLED` in `src/js/config/bridgeConfig.js`; set it to `false` and the page
+   says so plainly instead of showing a button that cannot work)
 6. A **Start Over** button clears all answers to begin fresh
 7. Form state is persisted in `sessionStorage` — refreshing the page won't lose data
 8. Browser **back/forward buttons** work — each page gets a readable URL hash (e.g. `#use-case-description`)
