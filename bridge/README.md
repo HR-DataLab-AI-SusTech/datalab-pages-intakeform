@@ -69,7 +69,39 @@ curl -s -X POST localhost:3458/mcp -H 'content-type: application/json' \
 # /mcp is deliberately NOT CORS-enabled — it exists for server-side callers, so a web page
 # must not be able to reach it. This is a 404, on purpose.
 curl -s -o /dev/null -w '%{http_code}\n' -X OPTIONS localhost:3458/mcp
+
+# 🔺 AND THE LISTENER SPLIT, which is the check that matters now the endpoint is public.
+# 3459 is what NetBird publishes; /mcp must be gone there for EVERY method, not just OPTIONS.
+curl -s -o /dev/null -w 'mesh   /mcp -> %{http_code}\n' -X POST localhost:3458/mcp \
+  -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'   # 200
+curl -s -o /dev/null -w 'public /mcp -> %{http_code}\n' -X POST localhost:3459/mcp \
+  -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'   # 404
+curl -s -o /dev/null -w 'public /healthz -> %{http_code}\n' localhost:3459/healthz          # 200
+
+# Stronger still: the conformance suite must PASS on the mesh port and FAIL on the public one.
+node mcp-conformance.mjs http://127.0.0.1:3458/mcp   # all properties hold
+node mcp-conformance.mjs http://127.0.0.1:3459/mcp   # FAILED — 17 properties
 ```
+
+## 🔺 Two listeners, and why
+
+`intake.twinhub.nl` was a **private** (mesh-only) NetBird service until 2026-08-28. Publishing it —
+which is what the form's Submit button needs, since a visitor's browser has no NetBird client —
+would otherwise have put `/mcp` on the open internet along with it. That surface is not safe there:
+`submit_intake` takes **no passphrase** (it relied on mesh membership, [ADR-0017 amendment
+3](https://github.com/HR-DataLab-AI-SusTech/compass/blob/main/knowledge/decisions/0017-intake-form-public-submit-and-a-scoped-bot-write-to-compass.md))
+and `list_recent_intakes` is **unfiltered**, returning every user's intakes with project names and
+submitter email addresses.
+
+| Listener | Port | Reached by | Serves |
+| --- | --- | --- | --- |
+| mesh | `BRIDGE_PORT` (3458) | LibreChat, Claude Code, over the mesh | every route, `/mcp` included |
+| public | `BRIDGE_PUBLIC_PORT` (3459) | NetBird's reverse proxy, from the internet | browser REST routes; `/mcp` is **404** |
+
+⚠️ **Both are bound to the host's mesh IP in compose** — "public" means NetBird forwards to it, never
+that the port is on `0.0.0.0`. ⚠️ **The split is a separate socket on purpose.** Deciding it per
+request would mean trusting `X-Forwarded-For`, which a client can set: fine for rate limiting, unfit
+for authorization. Set `BRIDGE_PUBLIC_PORT=0` to go back to mesh-only.
 
 ## Routes
 

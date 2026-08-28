@@ -23,6 +23,24 @@ const fs = require("node:fs");
 const { Pool } = require("pg");
 
 const PORT = Number(process.env.BRIDGE_PORT || 3458);
+
+/* 🔺 TWO LISTENERS, AND THE SPLIT IS A SECURITY BOUNDARY — NOT TIDINESS.
+ *
+ * `/mcp` and `POST /submit` used to share one port, which was safe only while the whole service was
+ * mesh-only. The moment `intake.twinhub.nl` is published to the internet that stops being true, and
+ * what would go with it is not the passphrase-gated form but the MCP tools: `submit_intake` takes
+ * NO passphrase (it relies on mesh membership — ADR-0017 amendment 3) and `list_recent_intakes`
+ * returns every user's intakes, project names and submitter email addresses included.
+ *
+ * So the internet-facing listener serves the BROWSER routes only and 404s `/mcp`, while PORT stays
+ * mesh-only and unchanged. NetBird publishes PUBLIC_PORT; LibreChat and Claude Code keep talking to
+ * PORT over the mesh and needed no change for this.
+ *
+ * ⚠️ NOT solvable by inspecting the request. `clientIp()` trusts `X-Forwarded-For`, which is fine
+ * for rate limiting (worst case: self-inflicted) and unfit for authorization, because a client can
+ * set it. A separate socket cannot be spoofed. Set BRIDGE_PUBLIC_PORT=0 to run mesh-only again.
+ */
+const PUBLIC_PORT = Number(process.env.BRIDGE_PUBLIC_PORT ?? 3459);
 const DATABASE_URL = process.env.INTAKE_DATABASE_URL || "";
 const PASSPHRASE = process.env.INTAKE_SUBMIT_PASSPHRASE || "";
 const COMPASS_TOKEN = process.env.COMPASS_GITHUB_TOKEN || "";
@@ -746,10 +764,19 @@ function sendJson(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
-const srv = http.createServer(async (req, res) => {
+/** The request handler. `publicFacing` marks the listener NetBird exposes to the internet. */
+function makeHandler({ publicFacing }) {
+  return async (req, res) => {
   try {
     const url = new URL(req.url, "http://localhost");
     const pathname = url.pathname;
+
+    // See PUBLIC_PORT above. Refused before anything else reads the request, and for every method,
+    // so no future route or verb can quietly re-open it.
+    if (publicFacing && pathname === "/mcp") {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: "not found" }));
+    }
 
     /* 🔺 CORS HEADERS ARE SET ONCE, HERE, FOR EVERY RESPONSE — not passed into each sendJson call.
      *
@@ -856,9 +883,18 @@ const srv = http.createServer(async (req, res) => {
     if (res.headersSent) return res.end();
     sendJson(res, 500, { error: "internal error" });
   }
-});
+  };
+}
 
+const srv = http.createServer(makeHandler({ publicFacing: false }));
 srv.listen(PORT, () => console.log(
-  `bridge: listening on :${srv.address().port}, form schema ${FORM_CONFIG_PATH}, ` +
+  `bridge: listening on :${srv.address().port} (mesh, all routes), form schema ${FORM_CONFIG_PATH}, ` +
   `compass PR filing ${COMPASS_TOKEN ? "enabled" : "disabled (no COMPASS_GITHUB_TOKEN)"}`,
 ));
+
+if (PUBLIC_PORT) {
+  const pubSrv = http.createServer(makeHandler({ publicFacing: true }));
+  pubSrv.listen(PUBLIC_PORT, () => console.log(
+    `bridge: listening on :${pubSrv.address().port} (internet-facing via NetBird, /mcp refused)`,
+  ));
+}

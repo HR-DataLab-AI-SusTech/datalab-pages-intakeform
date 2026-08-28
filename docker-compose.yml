@@ -69,7 +69,12 @@ services:
       # Mesh-bound only, never 0.0.0.0 — same pattern as compass-board's bridge and every other
       # service on this host. Public reachability (this form's endpoint IS meant to be public) goes
       # through NetBird's reverse proxy in front of this, not by binding wide here.
+      # 3458 — mesh only: every route, `/mcp` included. LibreChat and Claude Code use this one.
       - "${MESH_IP:?set MESH_IP in .env to this host's NetBird address}:3458:3458"
+      # 3459 — what NetBird publishes to the internet. Browser REST routes only; the bridge 404s
+      # `/mcp` on this listener (see BRIDGE_PUBLIC_PORT in bridge/server.js). ⚠️ Still bound to the
+      # mesh IP: NetBird's edge reaches a peer over the mesh, so "public" never means 0.0.0.0 here.
+      - "${MESH_IP:?set MESH_IP in .env to this host's NetBird address}:3459:3459"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3458/healthz"]
       interval: 30s
