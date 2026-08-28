@@ -110,6 +110,36 @@ check(
 );
 if (Array.isArray(list)) console.log(`       tools: ${list.map((t) => t.name).join(", ")}`);
 
+/* ── 4b. list_recent_intakes must advertise itself as caller-scoped ────────────────────────────
+ *
+ * 🔺 Until 2026-08-28 this tool returned EVERY user's intakes to every caller — measured, a mesh
+ * request with no identity headers at all got the full list including submitter email addresses.
+ * The fix is server-side scoping, and these are the only parts of it this probe can assert:
+ * the declared contract. ⚠️ The probe is deliberately READ-ONLY (see the header) so it cannot
+ * call the tool and compare row sets — that check is in the deploy verification, not here.
+ * What this catches is the regression that looks harmless: someone dropping `all` back to a
+ * default-everything tool, or rewording the description so an agent stops knowing the difference.
+ */
+const recent = Array.isArray(list) ? list.find((t) => t.name === "list_recent_intakes") : null;
+if (recent) {
+  check(
+    "list_recent_intakes declares an explicit `all` opt-in",
+    recent.inputSchema?.properties?.all?.type === "boolean",
+    `properties: ${Object.keys(recent.inputSchema?.properties ?? {}).join(",")}`,
+  );
+  check(
+    "`all` is NOT required, so the default is the caller's own rows",
+    !(recent.inputSchema?.required ?? []).includes("all"),
+  );
+  check(
+    "its description tells an agent the default is scoped to the caller",
+    /own/i.test(recent.description ?? ""),
+    `description: ${String(recent.description).slice(0, 80)}`,
+  );
+} else if (Array.isArray(list)) {
+  check("list_recent_intakes is advertised", false, "tool missing from tools/list");
+}
+
 /* ── 5. error handling ─────────────────────────────────────────────────────────────────────── */
 const bad = await rpc("{not json", { raw: true });
 check("malformed JSON gives a -32700 parse error", bad.json?.error?.code === -32700, `got ${JSON.stringify(bad.json?.error)}`);

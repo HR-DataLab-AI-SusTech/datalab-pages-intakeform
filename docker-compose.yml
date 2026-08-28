@@ -9,7 +9,7 @@ services:
   # Run it deliberately:  docker compose --profile dev up web
   web:
     profiles: ["dev"]
-    image: nginx:alpine
+    image: nginx:alpine@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913
     ports:
       # Loopback, not 0.0.0.0: this is a developer previewing the form on their own machine.
       - "127.0.0.1:8080:80"
@@ -25,7 +25,7 @@ services:
   # one — a dev database that accumulates state stops reproducing the fresh-install path.
   postgres-dev:
     profiles: ["dev"]
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
     environment:
       POSTGRES_PASSWORD: devonly
       POSTGRES_USER: intake

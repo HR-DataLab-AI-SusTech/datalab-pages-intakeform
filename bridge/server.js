@@ -112,11 +112,22 @@ async function upsertDraft({ draft_id, answers, source, submitted_by }) {
   return rows[0].id;
 }
 
-async function listRecent({ status, limit }) {
+/* `submitted_by` is an OPTIONAL scope, and passing it is how a caller is confined to its own
+ * rows. Predicates are accumulated with positional placeholders rather than string-built, so a
+ * caller-supplied status or address can never reach the SQL. */
+async function listRecent({ status, limit, submitted_by }) {
   const lim = Math.min(Math.max(Number(limit) || 20, 1), 200);
   const params = [lim];
-  let where = "";
-  if (status === "draft" || status === "submitted") { where = "WHERE status = $2"; params.push(status); }
+  const predicates = [];
+  if (status === "draft" || status === "submitted") {
+    params.push(status);
+    predicates.push(`status = $${params.length}`);
+  }
+  if (submitted_by) {
+    params.push(submitted_by);
+    predicates.push(`submitted_by = $${params.length}`);
+  }
+  const where = predicates.length ? `WHERE ${predicates.join(" AND ")}` : "";
   const { rows } = await pool.query(
     `SELECT id, status, answers->>'q0' AS project_name, submitted_by, created_at
        FROM intakes ${where} ORDER BY created_at DESC LIMIT $1`,
@@ -295,8 +306,29 @@ function clientIp(req) {
 
 /* ── Caller identity ───────────────────────────────────────────────────────────────────────────
  *
- * Same convention as compass-board's bridge: read what the caller's own front-end substituted,
- * never trust it for anything beyond a label on the row.
+ * Same convention as compass-board's bridge: read what the caller's own front-end substituted.
+ *
+ * 🔺 THIS IS NO LONGER ONLY A LABEL, as of 2026-08-28. `list_recent_intakes` scopes its query by
+ * the return value, so this function is now load-bearing for who sees whose rows. The previous
+ * comment said "never trust it for anything beyond a label on the row", and rather than quietly
+ * contradicting it, here is exactly how far it can be trusted:
+ *
+ *   • LibreChat substitutes the header SERVER-SIDE, so a chat user cannot choose another user's
+ *     value and the model cannot forge one. Against other chat users and against the model —
+ *     the stated threat — this is a real control.
+ *   • A direct caller on the mesh sets the header freely. Against that, it is still only a label.
+ *     Mesh membership is the outer perimeter for this listener and it is flat; that is tracked in
+ *     Compass, not here. So: this closes the chat-user hole, and does not claim to close more.
+ *
+ * ⚠️ THE FIRST BRANCH IS DEAD, MEASURED, AND DELIBERATELY LEFT THAT WAY. It reads
+ * `x-librechat-user`, but `librechat.yaml` sends `X-Chat-User` — so it never matches and the
+ * actor is always the EMAIL. Verified 2026-08-28: a request carrying a distinctive `X-Chat-User`
+ * *and* `X-Chat-Email` recorded the email.
+ *
+ * 🔺 Do NOT "fix" the header name without migrating the data. Every existing row's
+ * `submitted_by` holds an email, so making the username branch live would change the actor to a
+ * username — and the caller-scoped filter above would then match none of a user's own history.
+ * The email is the identifier that is actually in the data; that is why it stays.
  */
 function callerIdentity(headers, fallback) {
   const user = headers["x-librechat-user"];
@@ -679,15 +711,47 @@ const TOOLS = {
   },
 
   list_recent_intakes: {
-    description: "Recent intakes, read-only, no passphrase needed.",
+    description: "The CALLER'S OWN recent intakes, read-only. Pass all:true for everyone's — " +
+      "that is an audit view, it is logged, and it returns other people's email addresses, so " +
+      "do not use it to answer 'what have I filed?'.",
+    // 🔺 THIS RETURNED EVERY USER'S INTAKES TO EVERY CALLER until 2026-08-28, and the audience was
+    // wider than "every chat user": measured, a request to the mesh listener carrying NO identity
+    // headers at all got the full list back, project names and submitter email addresses included.
+    //
+    // ⚠️ The mitigation before this was a line in the AGENT PROMPT telling the model not to read the
+    // list out. That is an instruction, not a control — the rows were still returned, so anything
+    // that ignored the prompt (a different agent, a direct mesh call, a jailbreak) got the data.
+    //
+    // ℹ️ What this filter does and does not defend against, stated because `callerIdentity`'s own
+    // docstring says never to trust that header beyond a label:
+    //   • DOES defend against other LibreChat users and against the model itself, because LibreChat
+    //     substitutes the header SERVER-SIDE and the model cannot forge it. That is the stated threat.
+    //   • DOES NOT defend against a direct caller on the mesh, which can set the header freely.
+    //     Mesh membership remains the outer perimeter, and it is flat — see Compass's
+    //     twinhub-hosting todos. Fixing that is a different job; this closes the chat-user hole.
     inputSchema: { type: "object", properties: {
       status: { type: "string", enum: ["draft", "submitted"] },
       limit: { type: "number", description: "Default 20, max 200." },
+      all: {
+        type: "boolean",
+        description: "Everyone's intakes, not just yours. Audit use only; logged server-side.",
+      },
     } },
-    async run({ status, limit }) {
-      const rows = await listRecent({ status, limit });
+    async run({ status, limit, all }, caller) {
+      // Default to the caller's own rows. `caller.actor` is the address LibreChat substituted;
+      // when there is none, `callerIdentity`'s fallback applies and the scope is that label —
+      // which is correct, not a hole: an unidentified caller sees only rows it filed itself.
+      const scope = all ? undefined : caller?.actor;
+      if (all) {
+        console.warn(
+          `[audit] list_recent_intakes all=true by ${JSON.stringify(caller?.actor ?? "unknown")}` +
+          " — returned every user's intakes, including submitter addresses",
+        );
+      }
+      const rows = await listRecent({ status, limit, submitted_by: scope });
       return {
         count: rows.length,
+        scope: all ? "all" : "own",
         intakes: rows.map((r) => ({
           id: r.id, status: r.status, project_name: r.project_name || null,
           submitted_by: r.submitted_by, created_at: r.created_at,

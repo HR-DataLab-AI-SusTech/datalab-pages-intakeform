@@ -1,0 +1,156 @@
+name: ci
+
+# Static analysis of what would be deployed. Modelled on compass-assistant's ci.yml, keeping only
+# the checks that can pass HERE and adding the ones this repo needs.
+#
+# 🔺 WHY THIS FILE EXISTS AT ALL. Until 2026-08-28 this repo had no `ci.yml` — only
+# deploy-pages.yml — so `ci-local --receipt-for` had nothing to extract and `promote.py` could only
+# ever accept it via `--no-ci-evidence`. It was the one stack in the estate that could not earn a
+# receipt, which per ADR-0016 means it was the one stack whose deploys carried no evidence at all.
+#
+# ⚠️ CI cannot reach the host. PC-1 is mesh-only with no inbound port, so no GitHub runner can test
+# against the running bridge or its database. Everything below is static.
+on:
+  # `push` filtered to main: unfiltered, a push to a branch with an open PR fires `push` AND
+  # `pull_request` — two full runs for one `git push`. Actions minutes are the binding constraint
+  # (ADR-0016). PRs stay covered by the trigger below.
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+# 🔺 LEAST PRIVILEGE. With no `permissions:` block a workflow inherits the org default — read/write
+# — so every job would run with a token that can push to `main`. Nothing here writes anything.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ONE JOB, deliberately: GitHub bills per job rounded UP to the minute, so several jobs of
+  # seconds-long static analysis cost several minutes and re-run checkout each time (ADR-0016).
+  # The trade is real — steps are fail-fast, so the first failure hides the rest — and it is the
+  # right one here, because ci-local re-runs these locally anyway.
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: the workflows themselves are valid
+        run: |
+          # Lint the linter's home: a mistyped job key, an `on:` block that silently never fires or
+          # an unpinned action is otherwise invisible until a push burns minutes discovering it.
+          # Digest-pinned and via docker because ci-local must be able to run this on a workstation.
+          docker run --rm -v "$PWD:/repo:ro" -w /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+
+      - name: the bridge and the probe must parse
+        run: |
+          set -eu
+          # `node --check` is the cheapest real gate on this repo: the bridge is hand-written
+          # MCP-over-HTTP with no build step, so a syntax error ships straight to the host and the
+          # container crash-loops. Asserting the file list is non-empty matters as much as the parse
+          # — a moved directory would otherwise make this step silently pass over nothing.
+          files=$(find bridge -maxdepth 1 -name '*.js' -o -maxdepth 1 -name '*.mjs')
+          [ -n "$files" ] || { echo "❌ no bridge sources found — did the layout change?"; exit 1; }
+          for f in $files; do node --check "$f" && echo "  ok  $f"; done
+
+      - name: shellcheck, and there is something to check
+        run: |
+          set -eu
+          SC="koalaman/shellcheck:stable@sha256:bb596a0d169b85ddd81d8b6d3a2ff6d5baf5fca10b97f575ebc647c3dff62b3d"
+          # ⚠️ `find`, not `git ls-files`: inside a mounted container git refuses the repo with
+          # "detected dubious ownership" and returns nothing, which made this check report
+          # "no shell scripts found" for an environment reason rather than a real one.
+          mapfile -t sh < <(find . -name '*.sh' -not -path './node_modules/*' -not -path './.git/*')
+          [ "${#sh[@]}" -gt 0 ] || { echo "❌ no shell scripts found — this check would pass over nothing"; exit 1; }
+          fail=0
+          for f in "${sh[@]}"; do
+            bash -n "$f" || fail=1
+            docker run --rm -v "$PWD:/mnt:ro" -w /mnt "$SC" -e SC1091 "$f" || fail=1
+          done
+          [ "$fail" -eq 0 ] && echo "✅ ${#sh[@]} shell script(s) clean"
+
+      - name: the form's own linters
+        run: |
+          set -eu
+          # The static form is what the public sees; its linters are already configured in this
+          # repo (.eslintrc.json, .stylelintrc.json, .htmlhintrc) and were never run by anything.
+          npm ci --no-audit --no-fund
+          npm run lint
+
+      - name: compose config renders, and every ${VAR} is documented in .env.example
+        run: |
+          set -eu
+          # `docker compose config` resolves every interpolation, so an unset variable or a typo in
+          # a service name fails here rather than on the host. The env file is gitignored, so seed
+          # placeholders from .env.example first — otherwise `config` fails on the missing file
+          # before it validates anything.
+          # ⚠️ `.env` at the REPO ROOT, not bridge/.env — docker-compose.yml's `env_file: .env` is
+          # resolved relative to the compose file, and the file's own comment records why the two
+          # must not be split: an env_file elsewhere is invisible to interpolation, so compose
+          # aborts on ${MESH_IP} while the variable plainly exists.
+          cp bridge/.env.example .env
+          while IFS='=' read -r k _; do case "$k" in ''|\#*) continue;; esac; export "$k=x"; done < bridge/.env.example
+          # AFTER the loop: .env.example also defines MESH_IP, and a blanket "x" is not a valid
+          # bind address, so compose fails interpolating ports. Same fix and same reason as
+          # compass-assistant's ci.yml.
+          export MESH_IP=127.0.0.1
+          docker compose config >/tmp/rendered.yml
+          echo "✅ compose config renders"
+          # Every ${VAR} the compose file references must appear in .env.example, or the next person
+          # deploying this has no way to know it is needed. This repo's own todos asked for exactly
+          # this check, copied from compass-assistant.
+          miss=0
+          # shellcheck disable=SC2016  # the single quotes are the point: match a literal ${VAR}
+          # `grep -v '^\s*#'` first: the compose file discusses ${VAR} in its own comments, and
+          # matching those made this check demand a variable named VAR.
+          for v in $(grep -v '^[[:space:]]*#' docker-compose.yml | grep -oE '\$\{[A-Z_][A-Z0-9_]*' | tr -d '${' | sort -u); do
+            grep -qE "^#?[[:space:]]*${v}=" bridge/.env.example || { echo "UNDOCUMENTED in .env.example: $v"; miss=1; }
+          done
+          [ "$miss" -eq 0 ] && echo "✅ every compose variable is documented"
+
+      - name: no port published on all interfaces
+        run: |
+          set -eu
+          # 🔺 A port published as "3458:3458" binds 0.0.0.0, which on a mesh host means the
+          # internet-facing side of the box too. The /mcp listener is mesh-only BY BINDING — that is
+          # the whole reason submit_intake and list_recent_intakes did not go public with /submit on
+          # 2026-08-28 — so an unbound port here silently publishes the tools.
+          if grep -nE '^\s*-\s*"?[0-9]+:[0-9]+' docker-compose.yml; then
+            echo "❌ published port with no bind address"; exit 1
+          fi
+          echo "✅ every published port is bound to an explicit address"
+
+      - name: every image must be digest-pinned
+        run: |
+          set -eu
+          # A floating tag means the host and CI can run different code from the same commit, which
+          # makes a receipt meaningless.
+          bad=0
+          while read -r line; do
+            case "$line" in *"@sha256:"*) ;; *) echo "❌ not digest-pinned: $line"; bad=1 ;; esac
+          done < <(grep -hoE '^\s*(image:|FROM)\s+\S+' docker-compose.yml bridge/Dockerfile docker/Dockerfile | awk '{print $2}')
+          [ "$bad" -eq 0 ] && echo "✅ every image is digest-pinned"
+
+      - name: the MCP conformance probe must itself be able to fail
+        run: |
+          set -eu
+          # 🔺 This repo's rule: a check nobody has proven can fail proves nothing. The probe needs a
+          # live bridge, so CI cannot run it for real — but it CAN prove the probe reports failure
+          # rather than exiting 0 on a server that answers nothing like MCP.
+          node -e '
+            const http = require("http");
+            const s = http.createServer((_q, r) => { r.writeHead(200, {"content-type":"application/json"}); r.end("{}"); });
+            s.listen(38581, "127.0.0.1", () => console.log("stub up"));
+          ' &
+          stub=$!
+          trap 'kill "$stub" 2>/dev/null || true' EXIT
+          sleep 1
+          if node bridge/mcp-conformance.mjs http://127.0.0.1:38581/mcp; then
+            echo "❌ the conformance probe PASSED against a stub that implements no MCP at all"
+            exit 1
+          fi
+          echo "✅ the conformance probe can fail"
