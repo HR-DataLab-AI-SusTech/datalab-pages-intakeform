@@ -863,6 +863,27 @@ function makeHandler({ publicFacing }) {
       return res.end("ok\n");
     }
 
+    // `GET /` sends a browser to the form. This host is an API endpoint — the form itself is served
+    // from GitHub Pages — so the root used to answer a bare `{"error":"not found"}`, which is what
+    // anyone who typed or pasted intake.twinhub.nl got.
+    //
+    // 🔺 The target is DERIVED from FORM_CONFIG_URL, not written out here. That variable already names
+    // the form's config inside the form's own site, so stripping `config/formConfig.json` yields the
+    // page it belongs to — and exactly one place still says where the form lives. A URL typed here
+    // would be a second copy, and it would go stale silently the day the form moves.
+    // ⚠️ If it is unset or shaped differently this falls through to the existing 404 rather than
+    // guessing: a redirect to the wrong page is worse than no redirect.
+    // ℹ️ Deliberately NOT restricted to the public listener. `/` carries no data and no capability,
+    // unlike `/mcp`, which is refused there for reasons that do not apply to a redirect.
+    if (req.method === "GET" && (pathname === "/" || pathname === "")) {
+      const form = String(process.env.FORM_CONFIG_URL || "")
+        .match(/^(https:\/\/[^\s?#]+\/)config\/formConfig\.json$/);
+      if (form) {
+        res.writeHead(302, { Location: form[1] });
+        return res.end();
+      }
+    }
+
     // Preflight. Answered for the browser-facing REST routes only — NOT for /mcp, which exists for
     // server-side callers (Claude Code, LibreChat) and has no reason to be reachable from a web
     // page. Declining to CORS-enable /mcp keeps browser-driven tool calls off the table entirely.
