@@ -417,8 +417,9 @@ docker/
   nginx.conf                        # Static file serving config
 docker-compose.yml                  # `bridge` (default) + `web`/`postgres-dev` (profile: dev)
 smoke_reconcile.sh                  # Post-deploy health check, run by lab-reconcile
-.sops.yaml                          # Encryption recipients (public keys — no secret)
-env.sops                            # The bridge's .env, encrypted to the host key set
+settings.env                        # The bridge's settings, in the clear (lab-reconcile renders .env from it)
+secrets.toml                        # Value-free map: its 3 secrets live in OpenBao, stacks/intake-bridge (Compass ADR-0054)
+.sops.yaml, env.sops                # The previous .env source; deleted after the vault render's week of soak
 ```
 
 ⚠️ **Two deploy paths, one repo.** `src/` is published by GitHub Pages on every push to `main`.
