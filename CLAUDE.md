@@ -7,10 +7,15 @@ Config-driven multi-step intake form for the AI SusTech Datalab. Vanilla HTML/CS
 ## Key Commands
 
 ```bash
+make check            # the whole CI gate (ci.yml) through ../infrastructure/ci-local; needs Docker
+make test             # fast native loop: npm run lint + node --check of the bridge, no Docker
 npm run lint          # ESLint + Stylelint + HTMLHint
 npm run format        # Prettier
-docker compose up     # Serve on localhost:8080
+npm run docker:up     # Serve on localhost:8080 (`docker compose --profile dev up --build`)
 ```
+
+`ci.yml` is the one definition of the gate; `make check` runs it rather than copying it. Run it before
+a push: the reconciler checks a commit's signature, never whether it passed.
 
 ## Deployment
 
